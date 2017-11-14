@@ -12,6 +12,7 @@ import JGrapeSystem.rMsg;
 import Model.CommonModel;
 import apps.appIns;
 import apps.appsProxy;
+import authority.plvDef.plvType;
 import interfaceModel.GrapeDBSpecField;
 import interfaceModel.GrapeTreeDBModel;
 import nlogger.nlogger;
@@ -25,6 +26,7 @@ public class ContentGroup {
 	private session se;
 	private JSONObject userInfo = null;
 	private String currentWeb = null;
+	private Integer userType = null;
 
 	public ContentGroup() {
 		model = new CommonModel();
@@ -34,11 +36,13 @@ public class ContentGroup {
 		gDbSpecField.importDescription(appsProxy.tableConfig("ContentGroup"));
 		group.descriptionModel(gDbSpecField);
 		group.bind();
-
+		group.enableCheck();//开启权限检查
+		
 		se = new session();
 		userInfo = se.getDatas();
 		if (userInfo != null && userInfo.size() != 0) {
 			currentWeb = userInfo.getString("currentWeb"); // 当前用户所属网站id
+			userType =userInfo.getInt("userType");
 		}
 	}
 
@@ -84,6 +88,12 @@ public class ContentGroup {
 		if (obj != null && obj.size() > 0) {
 			return rMsg.netMSG(1, "该栏目已存在");
 		}
+		JSONObject rMode = new JSONObject(plvType.chkType, plvType.powerVal).puts(plvType.chkVal, 100);//设置默认查询权限
+    	JSONObject uMode = new JSONObject(plvType.chkType, plvType.powerVal).puts(plvType.chkVal, 200);
+    	JSONObject dMode = new JSONObject(plvType.chkType, plvType.powerVal).puts(plvType.chkVal, 300);
+    	groupinfo.put("rMode", rMode.toJSONString()); //添加默认查看权限
+    	groupinfo.put("uMode", uMode.toJSONString()); //添加默认修改权限
+    	groupinfo.put("dMode", dMode.toJSONString()); //添加默认删除权限
 		Object info = group.data(groupinfo).autoComplete().insertOnce();
 		return info != null ? info.toString() : null;
 	}
@@ -357,7 +367,7 @@ public class ContentGroup {
 	    String result = rMsg.netMSG(100, "删除失败");
         String[] value = null;
         // 删除该栏目下所有文章
-
+        
         if (!StringHelper.InvaildString(ogid)) {
             value = ogid.split(",");
         }

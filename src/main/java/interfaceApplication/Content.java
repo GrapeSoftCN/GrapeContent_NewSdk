@@ -8,6 +8,11 @@ import JGrapeSystem.rMsg;
 import Model.CommonModel;
 import Model.WsCount;
 import apps.appsProxy;
+import authority.authObject;
+import authority.objectAdmin;
+import authority.objectAdminDef;
+import authority.plvDef.UserMode;
+import authority.plvDef.plvType;
 import cache.CacheHelper;
 import interfaceModel.GrapeDBSpecField;
 import interfaceModel.GrapeTreeDBModel;
@@ -26,6 +31,7 @@ public class Content {
     private session se;
     private JSONObject userInfo = null;
     private String currentWeb = null;
+    private Integer userType = null;
     private CacheHelper ch;
 
     public Content() {
@@ -37,11 +43,13 @@ public class Content {
         gDbSpecField.importDescription(appsProxy.tableConfig("Content"));
         content.descriptionModel(gDbSpecField);
         content.bindApp();
+        content.enableCheck();//开启权限检查
 
         se = new session();
         userInfo = se.getDatas();
         if (userInfo != null && userInfo.size() != 0) {
             currentWeb = userInfo.getString("currentWeb"); // 当前用户所属网站id
+            userType =userInfo.getInt("userType");//当前用户身份
         }
     }
 
@@ -81,6 +89,13 @@ public class Content {
         JSONObject ro = null;
         String result = rMsg.netMSG(100, "新增文章失败");
         try {
+        	JSONObject rMode = new JSONObject(plvType.chkType, plvType.powerVal).puts(plvType.chkVal, 100);//设置默认查询权限
+        	JSONObject uMode = new JSONObject(plvType.chkType, plvType.powerVal).puts(plvType.chkVal, 200);
+        	JSONObject dMode = new JSONObject(plvType.chkType, plvType.powerVal).puts(plvType.chkVal, 300);
+        	contentInfo.put("rMode", rMode.toJSONString()); //添加默认查看权限
+        	contentInfo.put("uMode", uMode.toJSONString()); //添加默认修改权限
+        	contentInfo.put("dMode", dMode.toJSONString()); //添加默认删除权限
+        	
             info = checkparam(contentInfo);
             if (JSONHelper.string2json(info) != null && info.contains("errorcode")) {
                 return info;
@@ -263,6 +278,10 @@ public class Content {
         if (userInfo == null || userInfo.size() <= 0) {
             return rMsg.netPAGE(idx, pageSize, total, new JSONArray());
         }
+        //判断当前用户身份：系统管理员，网站管理员
+    	if (UserMode.root>userType && userType>= UserMode.admin) { //判断是否是网站管理员
+    		content.eq("wbid", currentWeb);
+		}
         if (!StringHelper.InvaildString(condString)) {
             JSONArray condArray = JSONArray.toJSONArray(condString);
             if (condArray != null && condArray.size() != 0) {
@@ -277,7 +296,7 @@ public class Content {
         array = model.getImgs(model.getDefaultImage(array));
         return rMsg.netPAGE(idx, pageSize, total, (array != null && array.size() > 0) ? array : new JSONArray());
     }
-
+    
     /**
      * 显示审核文章，condString为null，显示所有的文章
      * 

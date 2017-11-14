@@ -25,7 +25,8 @@ public class ContentRecord {
         gDbSpecField.importDescription(appsProxy.tableConfig("ContentRecord"));
         Record.descriptionModel(gDbSpecField);
         Record.bindApp();
-
+        Record.enableCheck();//开启权限检查
+        
         se = new session();
         userInfo = se.getDatas();
         if (userInfo != null && userInfo.size() != 0) {
