@@ -12,6 +12,7 @@ import apps.appsProxy;
 import cache.CacheHelper;
 import database.dbFilter;
 import httpClient.request;
+import interfaceApplication.ContentGroup;
 import json.JSONHelper;
 import nlogger.nlogger;
 import security.codec;
@@ -310,7 +311,56 @@ public class CommonModel {
 		object.put("image", imgobj.get(id));
 		return object;
 	}
-
+	/**
+     * 获取默认缩略图
+     * 
+     * @project GrapeContent
+     * @package interfaceApplication
+     * @file Content.java
+     * 
+     * @param wbid
+     * @param array
+     * @return
+     *
+     */
+    public JSONArray getDefaultImage(String wbid, JSONArray array) {
+        String thumbnail = "", suffix = "", tempString = "0";
+        int type = 0;
+        if (!wbid.equals("") && array != null && array.size() != 0) {
+            int l = array.size();
+            // 显示默认缩略图
+            String temp = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + getRWbid(wbid)).toString();
+            JSONObject Obj = JSONObject.toJSON(temp);
+            if (Obj != null && Obj.size() != 0) {
+                if (Obj.containsKey("thumbnail")) {
+                    thumbnail = Obj.getString("thumbnail");
+                }
+                if (Obj.containsKey("suffix")) {
+                    suffix = Obj.getString("suffix");
+                }
+            }
+            for (int i = 0; i < l; i++) {
+                Obj = (JSONObject) array.get(i);
+                if (Obj != null && Obj.size() > 0) {
+                    if (Obj.containsKey("isSuffix")) {
+                        tempString = Obj.getString("isSuffix");
+                        if (tempString.contains("$numberLong")) {
+                            tempString = JSONObject.toJSON(tempString).getString("$numberLong");
+                        }
+                        tempString = (tempString == null || tempString.equals("")|| tempString.equals("null")) ? "0" : tempString;
+                        type = Integer.parseInt(tempString);
+                    }
+                    if (type == 0) {
+                        suffix = "";
+                    }
+                    Obj.put("thumbnail", thumbnail);
+                    Obj.put("suffix", suffix);
+                }
+                array.set(i, Obj);
+            }
+        }
+        return array;
+    }
 	/**
 	 * 图片地址
 	 * 

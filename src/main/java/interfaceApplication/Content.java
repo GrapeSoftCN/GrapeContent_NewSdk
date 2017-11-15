@@ -1,5 +1,8 @@
 package interfaceApplication;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -43,14 +46,89 @@ public class Content {
         gDbSpecField.importDescription(appsProxy.tableConfig("Content"));
         content.descriptionModel(gDbSpecField);
         content.bindApp();
-        content.enableCheck();//开启权限检查
+        content.enableCheck();// 开启权限检查
 
         se = new session();
         userInfo = se.getDatas();
         if (userInfo != null && userInfo.size() != 0) {
             currentWeb = userInfo.getString("currentWeb"); // 当前用户所属网站id
-            userType =userInfo.getInt("userType");//当前用户身份
+            userType = userInfo.getInt("userType");// 当前用户身份
         }
+    }
+
+    /**
+     * 添加推送文章到content表
+     * 
+     * @param object
+     * @return
+     */
+    protected String inserts(JSONObject object) {
+        return content.data(object).insertOnce().toString();
+    }
+
+    /**
+     * 批量添加文章
+     * 
+     * @project GrapeContent
+     * @package interfaceApplication
+     * @file Content.java
+     * 
+     * @param ArticleInfo
+     *            参数格式为[{文章数据1},{文章数据2},...]
+     * @return
+     *
+     */
+    @SuppressWarnings("unchecked")
+    public String AddAllArticle(String ArticleInfo) {
+        String tip = rMsg.netMSG(100, "新增失败");
+        JSONObject object;
+        String info;
+        List<String> list = new ArrayList<>();
+        long time = 0;
+        int code = 99;
+        JSONArray array = JSONHelper.string2array(ArticleInfo);
+        if (array != null && array.size() != 0) {
+            for (Object obj : array) {
+                object = (JSONObject) obj;
+                if (object.containsKey("time")) {
+                    time = Long.parseLong(object.getString("time"));
+                    object.put("time", time);
+                }
+                info = AddAll(object);
+                if (info == null) {
+                    if (list.size() != 0) {
+                        DeleteArticle(StringHelper.join(list));
+                    }
+                    code = 99;
+                    break;
+                }
+                code = 0;
+                list.add(info);
+            }
+            if (code == 0) {
+                tip = rMsg.netMSG(true, batch(list));
+            } else {
+                tip = rMsg.netMSG(100, "新增失败");
+            }
+        }
+        return tip;
+    }
+ // 批量查询,类方法内部使用
+    private JSONArray batch(List<String> list) {
+        JSONArray array = new JSONArray();
+        content.or();
+        for (String string : list) {
+            content.eq("_id", new ObjectId(string));
+        }
+        array = content.select();
+        return model.join(model.getImgs(model.ContentDencode(array)));
+    }
+    // 批量添加
+    private String AddAll(JSONObject object) {
+        Object tip;
+        String info = checkparam(object);
+        tip = (JSONHelper.string2json(info) != null && !info.contains("errorcode")) ? tip = content.data(info).autoComplete().insertOnce() : null;
+        return tip != null ? tip.toString() : null;
     }
 
     /**
@@ -84,18 +162,19 @@ public class Content {
      * @param contentInfo
      * @return
      */
+    @SuppressWarnings("unchecked")
     private String insert(JSONObject contentInfo) {
         String info = null;
         JSONObject ro = null;
         String result = rMsg.netMSG(100, "新增文章失败");
         try {
-        	JSONObject rMode = new JSONObject(plvType.chkType, plvType.powerVal).puts(plvType.chkVal, 100);//设置默认查询权限
-        	JSONObject uMode = new JSONObject(plvType.chkType, plvType.powerVal).puts(plvType.chkVal, 200);
-        	JSONObject dMode = new JSONObject(plvType.chkType, plvType.powerVal).puts(plvType.chkVal, 300);
-        	contentInfo.put("rMode", rMode.toJSONString()); //添加默认查看权限
-        	contentInfo.put("uMode", uMode.toJSONString()); //添加默认修改权限
-        	contentInfo.put("dMode", dMode.toJSONString()); //添加默认删除权限
-        	
+            JSONObject rMode = new JSONObject(plvType.chkType, plvType.powerVal).puts(plvType.chkVal, 100);// 设置默认查询权限
+            JSONObject uMode = new JSONObject(plvType.chkType, plvType.powerVal).puts(plvType.chkVal, 200);
+            JSONObject dMode = new JSONObject(plvType.chkType, plvType.powerVal).puts(plvType.chkVal, 300);
+            contentInfo.put("rMode", rMode.toJSONString()); // 添加默认查看权限
+            contentInfo.put("uMode", uMode.toJSONString()); // 添加默认修改权限
+            contentInfo.put("dMode", dMode.toJSONString()); // 添加默认删除权限
+
             info = checkparam(contentInfo);
             if (JSONHelper.string2json(info) != null && info.contains("errorcode")) {
                 return info;
@@ -278,10 +357,10 @@ public class Content {
         if (userInfo == null || userInfo.size() <= 0) {
             return rMsg.netPAGE(idx, pageSize, total, new JSONArray());
         }
-        //判断当前用户身份：系统管理员，网站管理员
-    	if (UserMode.root>userType && userType>= UserMode.admin) { //判断是否是网站管理员
-    		content.eq("wbid", currentWeb);
-		}
+        // 判断当前用户身份：系统管理员，网站管理员
+        if (UserMode.root > userType && userType >= UserMode.admin) { // 判断是否是网站管理员
+            content.eq("wbid", currentWeb);
+        }
         if (!StringHelper.InvaildString(condString)) {
             JSONArray condArray = JSONArray.toJSONArray(condString);
             if (condArray != null && condArray.size() != 0) {
@@ -296,7 +375,7 @@ public class Content {
         array = model.getImgs(model.getDefaultImage(array));
         return rMsg.netPAGE(idx, pageSize, total, (array != null && array.size() > 0) ? array : new JSONArray());
     }
-    
+
     /**
      * 显示审核文章，condString为null，显示所有的文章
      * 
