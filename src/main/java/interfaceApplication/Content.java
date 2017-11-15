@@ -141,7 +141,7 @@ public class Content {
      * @return
      */
     public String EditArticle(String oid, String contents) {
-        JSONObject temp = null;
+        Object temp = null;
         String result = rMsg.netMSG(100, "文章更新失败");
         JSONObject infos = JSONHelper.string2json(contents);
         if (userInfo == null || userInfo.size() <= 0) {
@@ -153,7 +153,7 @@ public class Content {
             if (JSONHelper.string2json(contents) != null && contents.contains("errorcode")) {
                 return contents;
             }
-            temp = content.eq("_id", oid).data(infos).update();
+            temp = content.eq("_id", oid).data(infos).updateEx();
             result = (temp != null) ? rMsg.netMSG(0, "文章更新成功") : result;
         }
         return result;

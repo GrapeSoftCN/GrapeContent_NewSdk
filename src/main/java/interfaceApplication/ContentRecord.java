@@ -42,7 +42,7 @@ public class ContentRecord {
         String uid = "";
         info.put("uid", uid); // 用户id
         info.put("oid", oid); // 文章id
-        tip = Record.data(info).insertOnce();
+        tip = Record.data(info).insertEx();
         return rMsg.netMSG(tip!=null, "新增成功");
     }
 }

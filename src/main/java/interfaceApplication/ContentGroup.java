@@ -94,7 +94,7 @@ public class ContentGroup {
     	groupinfo.put("rMode", rMode.toJSONString()); //添加默认查看权限
     	groupinfo.put("uMode", uMode.toJSONString()); //添加默认修改权限
     	groupinfo.put("dMode", dMode.toJSONString()); //添加默认删除权限
-		Object info = group.data(groupinfo).autoComplete().insertOnce();
+		Object info = group.data(groupinfo).autoComplete().insertEx();
 		return info != null ? info.toString() : null;
 	}
 
