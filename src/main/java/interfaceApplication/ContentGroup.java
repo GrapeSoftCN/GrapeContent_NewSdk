@@ -36,7 +36,7 @@ public class ContentGroup {
 		gDbSpecField.importDescription(appsProxy.tableConfig("ContentGroup"));
 		group.descriptionModel(gDbSpecField);
 		group.bind();
-		group.enableCheck();//开启权限检查
+//		group.enableCheck();//开启权限检查
 		
 		se = new session();
 		userInfo = se.getDatas();
@@ -473,8 +473,8 @@ public class ContentGroup {
 			}
 		}
 		group.eq("wbid", wbid);
-		array = group.dirty().page(idx, pageSize);
-		total = group.count();
+		total = group.dirty().count();
+		array = group.page(idx, pageSize);
 		return rMsg.netPAGE(idx, pageSize, total, array);
 	}
 
@@ -644,8 +644,7 @@ public class ContentGroup {
 			if (!tid.equals("") && tid.length() > 0) {
 				tid = StringHelper.fixString(tid, ',');
 				if (!tid.equals("")) {
-					temp = appsProxy.proxyCall("/GrapeTemplate/TemplateContext/TempFindByTids/s:" + tid)
-							.toString();
+					temp =(String) appsProxy.proxyCall("/GrapeTemplate/TemplateContext/TempFindByTid/s:" + tid);
 					tempobj = JSONObject.toJSON(temp);
 				}
 			}

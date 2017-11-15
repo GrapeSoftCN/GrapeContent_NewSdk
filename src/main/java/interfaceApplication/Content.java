@@ -11,9 +11,6 @@ import JGrapeSystem.rMsg;
 import Model.CommonModel;
 import Model.WsCount;
 import apps.appsProxy;
-import authority.authObject;
-import authority.objectAdmin;
-import authority.objectAdminDef;
 import authority.plvDef.UserMode;
 import authority.plvDef.plvType;
 import cache.CacheHelper;
@@ -46,7 +43,7 @@ public class Content {
         gDbSpecField.importDescription(appsProxy.tableConfig("Content"));
         content.descriptionModel(gDbSpecField);
         content.bindApp();
-        content.enableCheck();// 开启权限检查
+        // content.enableCheck();// 开启权限检查
 
         se = new session();
         userInfo = se.getDatas();
@@ -113,7 +110,8 @@ public class Content {
         }
         return tip;
     }
- // 批量查询,类方法内部使用
+
+    // 批量查询,类方法内部使用
     private JSONArray batch(List<String> list) {
         JSONArray array = new JSONArray();
         content.or();
@@ -123,6 +121,7 @@ public class Content {
         array = content.select();
         return model.join(model.getImgs(model.ContentDencode(array)));
     }
+
     // 批量添加
     private String AddAll(JSONObject object) {
         Object tip;
@@ -189,6 +188,10 @@ public class Content {
         }
         return result;
     }
+
+    // 判断栏目类型，若为视频文章，则转换为flv，MP4
+
+    // 若为超链接文章，则获取超链接缩略图
 
     /**
      * 错别字识别
@@ -331,19 +334,77 @@ public class Content {
         return result;
     }
 
+    /**
+     * 根据内容组id显示文章
+     * 
+     * @param ogid
+     * @return
+     */
+    public String ShowByGroupId(String wbid, String ogid) {
+        return ShowPicByGroupId(wbid, ogid);
+    }
+
+    /*----------前台页面图片显示-------------*/
+    /**
+     * 根据内容组id显示文章
+     * 
+     * @param ogid
+     * @return
+     */
+    @SuppressWarnings("unchecked")
+    public String ShowPicByGroupId(String wbid, String ogid) {
+        JSONArray array = null;
+        JSONObject object = null;
+        String img;
+        try {
+            array = content.eq("wbid", wbid).eq("slevel", 0).eq("ogid", ogid).field("_id,mainName,ogid,time,image").desc("time").desc("sort").limit(20).select();
+            array = model.getImgs(model.ContentDencode(array));
+            if (array != null && array.size() > 0) {
+                int l = array.size();
+                for (int i = 0; i < l; i++) {
+                    object = (JSONObject) array.get(i);
+                    img = object.getString("image");
+                    object.put("image", (img != null && !img.equals("")) ? img.split(",")[0] : "");
+                    array.set(i, object);
+                }
+            }
+        } catch (Exception e) {
+            nlogger.logout("Content.findPicByGroupID: " + e);
+            array = null;
+        }
+        return rMsg.netMSG(true, array);
+    }
+
     /*---------- 前台分页 
      * 				[显示字段：_id,mainName,time,wbid,ogid,image,readCount,souce]
      * ----------
      */
     public String Page(String wbid, int idx, int pageSize) {
-        return PageBy(wbid, idx, pageSize, null);
+        if (idx <= 0) {
+            return rMsg.netMSG(false, "页码错误");
+        }
+        if (pageSize <= 0) {
+            return rMsg.netMSG(false, "页长度错误");
+        }
+        return rMsg.netPAGE(idx, pageSize, content.dirty().count(), content.page(idx, pageSize));
     }
 
     public String PageBy(String wbid, int idx, int pageSize, String condString) {
-        if (userInfo != null && userInfo.size() != 0) {
-            wbid = userInfo.get("currentWeb").toString();
+        String out = null;
+        if (idx <= 0) {
+            return rMsg.netMSG(false, "页码错误");
         }
-        return null;
+        if (pageSize <= 0) {
+            return rMsg.netMSG(false, "页长度错误");
+        }
+        JSONArray condArray = JSONArray.toJSONArray(condString);
+        if (condArray != null && condArray.size() > 0) {
+            content.where(condArray);
+            out = rMsg.netPAGE(idx, pageSize, content.dirty().count(), content.page(idx, pageSize));
+        } else {
+            out = rMsg.netMSG(false, "条件无效");
+        }
+        return out;
     }
 
     /*---------- 后台分页  [显示所有字段]----------*/
@@ -361,7 +422,7 @@ public class Content {
         if (UserMode.root > userType && userType >= UserMode.admin) { // 判断是否是网站管理员
             content.eq("wbid", currentWeb);
         }
-        if (!StringHelper.InvaildString(condString)) {
+        if (StringHelper.InvaildString(condString)) {
             JSONArray condArray = JSONArray.toJSONArray(condString);
             if (condArray != null && condArray.size() != 0) {
                 content.where(condArray);
@@ -373,7 +434,7 @@ public class Content {
         total = content.count();
         array = setTemplate(array); // 设置模版
         array = model.getImgs(model.getDefaultImage(array));
-        return rMsg.netPAGE(idx, pageSize, total, (array != null && array.size() > 0) ? array : new JSONArray());
+        return rMsg.netPAGE(idx, pageSize, total, (array != null && array.size() > 0) ? model.ContentDencode(array) : new JSONArray());
     }
 
     /**
@@ -1235,8 +1296,9 @@ public class Content {
      * @return
      *
      */
+    @SuppressWarnings("unchecked")
     private String checkparam(JSONObject contentInfo) {
-        String mainName = "", fatherid;
+        String mainName = "", fatherid, temp;
         if (contentInfo == null) {
             return rMsg.netMSG(100, "新增失败");
         }
@@ -1251,6 +1313,21 @@ public class Content {
             fatherid = contentInfo.getString("fatherid");
             if (StringHelper.InvaildString(fatherid) && !fatherid.equals("0")) {
                 contentInfo.remove("ogid");
+            }
+        }
+        if (!contentInfo.containsKey("content")) {
+            temp = contentInfo.getString("content");
+            if (StringHelper.InvaildString(temp)) {
+                temp = codec.decodebase64(temp);
+                temp = codec.DecodeHtmlTag(temp);
+                contentInfo.escapeHtmlPut("content", temp);
+            }
+        }
+        if (!contentInfo.containsKey("image")) {
+            temp = contentInfo.getString("image");
+            if (StringHelper.InvaildString(temp)) {
+                temp = codec.DecodeHtmlTag(temp);
+                contentInfo.put("image", model.getImageUri(temp));
             }
         }
         return contentInfo.toJSONString();

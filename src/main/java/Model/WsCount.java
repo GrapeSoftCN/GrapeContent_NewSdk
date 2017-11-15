@@ -8,6 +8,7 @@ import database.db;
 import interfaceApplication.ContentGroup;
 import interfaceModel.GrapeDBSpecField;
 import interfaceModel.GrapeTreeDBModel;
+import string.StringHelper;
 
 /**
  * 文章数据统计
@@ -134,6 +135,7 @@ public class WsCount {
         JSONObject nObj = new JSONObject();
         //String[] Allweb = getCid(rootID);
         rootID = model.getRWbid(rootID);
+        long click = getClick(rootID, startUT, endUT);  //文章阅读量
         long allCnt = getCount(rootID,startUT,endUT);
         long argCnt = getAgreeCount(rootID,startUT,endUT);
         long disArg = getDisagreeCount(rootID,startUT,endUT);
@@ -362,7 +364,48 @@ public class WsCount {
         }
         return count;
     }
-
+    /**
+     * 获取点击量
+     * 
+     * @project GrapeContent
+     * @package model
+     * @file WsCount.java
+     * 
+     * @param wid
+     * @param startUT
+     * @param endUT
+     * @return
+     *
+     */
+    private long getClick(String wid, long startUT, long endUT) {
+        int count = 0, temp = 0;
+        String tempString = "0";
+        JSONArray array = null;
+        if (wid != null) {
+            db db = content.bind();
+            if (startUT > 0) {
+                db.and().gte("time", startUT);
+            }
+            if (endUT > 0) {
+                db.and().lte("time", endUT);
+            }
+            array = db.and().eq("wbid", wid).field("clickcount,readCount").select();
+        }
+        if (array != null && array.size() > 0) {
+            JSONObject object;
+            for (Object obj : array) {
+                object = (JSONObject) obj;
+                tempString = object.getString("clickcount");
+                tempString = (StringHelper.InvaildString(tempString)) ? "0" : tempString;
+                if (tempString.contains("$numberLong")) {
+                    tempString = JSONObject.toJSON(tempString).getString("$numberLong");
+                }
+                temp = Integer.parseInt(tempString);
+                count += temp;
+            }
+        }
+        return count;
+    }
     // 获取网站id，包含自身网站id
     private String[] getCid(String wid) {
         String[] trees = null;

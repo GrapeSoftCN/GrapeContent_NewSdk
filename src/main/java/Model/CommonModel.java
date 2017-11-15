@@ -617,8 +617,10 @@ public class CommonModel {
 				if (!wbid.contains(temp)) {
 					wbid += temp + ",";
 				}
-				temp = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + wbid).toString();
-				Obj = JSONObject.toJSON(temp);
+				if (StringHelper.InvaildString(wbid)) {
+				    temp = (String)appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + wbid);
+	                Obj = JSONObject.toJSON(temp);
+                }
 			}
 			if (Obj != null && Obj.size() > 0) {
 				for (int i = 0; i < l; i++) {
