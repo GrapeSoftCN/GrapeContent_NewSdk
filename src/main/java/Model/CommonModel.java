@@ -24,16 +24,30 @@ public class CommonModel {
     private String appid = appsProxy.appidString();
 	private final Pattern ATTR_PATTERN = Pattern.compile("<img[^<>]*?\\ssrc=['\"]?(.*?)['\"]?\\s.*?>", Pattern.CASE_INSENSITIVE);
 
+//	/**
+//	 * 发送数据到kafka
+//	 * @param id
+//	 * @param mode
+//	 * @param newstate
+//	 */
+//	public void setKafka(String id, int mode, int newstate) {
+//        APIHost = getconfig("APIHost");
+//        APIAppid = getconfig("appid");
+//	    if (!APIHost.equals("") && !APIAppid.equals("")) {
+//            request.Get(APIHost + "/" + APIAppid + "/sendServer/ShowInfo/getKafkaData/" + id +"/"+ appid + "/int:1/int:" + mode + "/int:" + newstate);
+//        }
+//    }
+	
 	/**
-	 * 发送数据到kafka
-	 * @param id
-	 * @param mode
-	 * @param newstate
-	 */
-	public void setKafka(String id, int mode, int newstate) {
+     * 发送数据到kafka
+     * @param id
+     * @param mode
+     * @param newstate
+     */
+    public void setKafka(String id, int mode, int newstate) {
         APIHost = getconfig("APIHost");
         APIAppid = getconfig("appid");
-	    if (!APIHost.equals("") && !APIAppid.equals("")) {
+        if (!APIHost.equals("") && !APIAppid.equals("")) {
             request.Get(APIHost + "/" + APIAppid + "/sendServer/ShowInfo/getKafkaData/" + id +"/"+ appid + "/int:1/int:" + mode + "/int:" + newstate);
         }
     }
@@ -113,6 +127,8 @@ public class CommonModel {
 				filter.eq(key, value);
 			}
 			condArray = filter.build();
+		}else{
+		    condArray = JSONArray.toJSONArray(Info);
 		}
 		return condArray;
 	}
@@ -261,7 +277,7 @@ public class CommonModel {
 	@SuppressWarnings("unchecked")
 	public JSONArray getImgs(JSONArray array) {
 		JSONObject object;
-		if (array == null || array.size() == 0) {
+		if (array == null || array.size() <= 0) {
 			return new JSONArray();
 		}
 		for (int i = 0; i < array.size(); i++) {
@@ -406,7 +422,7 @@ public class CommonModel {
 			if (string.contains("http:")) {
 				string = getImageUri(string);
 			}
-			string = "host" + string;
+			string = getconfig("fileHost") + string;
 			list.add(string);
 		}
 		return StringHelper.join(list);
@@ -620,6 +636,8 @@ public class CommonModel {
 				if (StringHelper.InvaildString(wbid)) {
 				    temp = (String)appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + wbid);
 	                Obj = JSONObject.toJSON(temp);
+	                
+	                //{"wbid":{"th":"","is":""}}
                 }
 			}
 			if (Obj != null && Obj.size() > 0) {
@@ -627,6 +645,7 @@ public class CommonModel {
 					object = (JSONObject) array.get(i);
 					wbid = object.getString("wbid");
 					thumbnail = Obj.getString(wbid);
+					thumbnail =JSONObject.toJSON(thumbnail).getString("thumbnail");
 					object.put("thumbnail", thumbnail);
 					array.set(i, object);
 				}

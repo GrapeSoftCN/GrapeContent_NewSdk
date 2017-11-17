@@ -143,7 +143,7 @@ public class WsCount {
         nObj.put("id", rootID);
         nObj.put("fatherid", fatherID);
         nObj.put("name", rootName);
-        String tree = (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getChildWeb/s:" + rootID);
+        String tree = (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getChildrenweb/s:" + rootID);
         if (!tree.equals("")) {
             trees = tree.split(",");
         }
@@ -171,6 +171,7 @@ public class WsCount {
                 argCnt += json.getLong("checked");
                 disArg += json.getLong("uncheck");
                 chking += json.getLong("checking");
+                click +=json.getLong("clickcount");
                 
                 jsonArray.add(json);
             }
@@ -183,6 +184,7 @@ public class WsCount {
         nObj.put("checked", argCnt);
         nObj.put("uncheck", disArg);
         nObj.put("checking", chking);
+        nObj.put("clickcount", click);
         
         nObj.put("children", jsonArray);
         
@@ -396,7 +398,7 @@ public class WsCount {
             for (Object obj : array) {
                 object = (JSONObject) obj;
                 tempString = object.getString("clickcount");
-                tempString = (StringHelper.InvaildString(tempString)) ? "0" : tempString;
+                tempString = (!StringHelper.InvaildString(tempString)) ? "0" : tempString;
                 if (tempString.contains("$numberLong")) {
                     tempString = JSONObject.toJSON(tempString).getString("$numberLong");
                 }
