@@ -188,8 +188,8 @@ public class CommonModel {
 		if (object != null && object.size() > 0) {
 			if (object.containsKey("content")) {
 				temp = object.getString("content");
-				temp = dencode(temp);
-				object.escapeHtmlPut("object", temp);
+//				temp = dencode(temp);
+				object.escapeHtmlPut("content", temp);
 			}
 			if (object.containsKey("image")) {
 				temp = object.getString("image");

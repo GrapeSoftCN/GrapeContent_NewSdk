@@ -15,6 +15,7 @@ import apps.appsProxy;
 import authority.plvDef.UserMode;
 import authority.plvDef.plvType;
 import cache.CacheHelper;
+import co.paralleluniverse.strands.channels.Mix.State;
 import interfaceModel.GrapeDBSpecField;
 import interfaceModel.GrapeTreeDBModel;
 import json.JSONHelper;
@@ -162,6 +163,7 @@ public class Content {
      */
     @SuppressWarnings("unchecked")
     public String PublishArticle(String ArticleInfo) {
+    	long state = 2;
         long currentTime = TimeHelper.nowMillis();
         ArticleInfo = codec.DecodeFastJSON(ArticleInfo);
         JSONObject object = JSONHelper.string2json(ArticleInfo);
@@ -172,11 +174,20 @@ public class Content {
             return rMsg.netMSG(100, "发布失败");
         }
         if (object.containsKey("time")) {
-            long time = object.getLong("time");
+            long time = Long.parseLong(object.getString("time"));
             if (time > currentTime) {
                 object.put("time", currentTime);
             }
         }
+        if (object.containsKey("ogid")) {   //文章状态
+            String ogid = object.getString("ogid");
+            String temp = new ContentGroup().isPublic(ogid);
+            if (temp.equals("1")) {
+				state = 0;
+			}
+            object.put("state", state);
+        }
+        
         return insert(object);
     }
 
@@ -204,7 +215,7 @@ public class Content {
                 return info;
             }
             // 若文章为视频文章或者超链接文章获取缩略图，同时视频转换为flv,mp4 !!
-            info = content.data(info).insertOnce().toString();
+            info = content.data(info).autoComplete().insertOnce().toString();
             ro = findOid(info);
 //            appsProxy.proxyCall("/sendServer/ShowInfo/getKafkaData/" + info + "/" + appsProxy.appid() + "/int:1/int:1/int:0");
             model.setKafka(info, 1, 0);
@@ -441,6 +452,7 @@ public class Content {
         JSONObject object = null;
         String img;
         try {
+        	wbid = model.getRWbid(wbid);
             array = content.eq("wbid", wbid).eq("slevel", 0).eq("ogid", ogid).field("_id,mainName,ogid,time,image").desc("time").desc("sort").desc("_id").limit(20).select();
             array = model.getImgs(model.ContentDencode(array));
             if (array != null && array.size() > 0) {
@@ -1250,7 +1262,7 @@ public class Content {
     private JSONArray setTemplate(JSONArray array) {
         JSONObject object;
         String[] values;
-        String value, list = "", content = "";
+        String value, list = "", content = "",temp;
         array = model.ContentDencode(array); // 解码
         if (array == null || array.size() <= 0) {
             return array;
@@ -1261,9 +1273,12 @@ public class Content {
                 object = (JSONObject) array.get(i);
                 value = object.getString("ogid");
                 if (tempObj != null && tempObj.size() != 0) {
-                    values = tempObj.getString(value).split(",");
-                    content = values[0];
-                    list = values[1];
+                	temp = tempObj.getString("value");
+                	if (StringHelper.InvaildString(temp)) {
+                		values = temp.split(",");
+                        content = values[0];
+                        list = values[1];
+					}
                 }
                 object.put("TemplateContent", content);
                 object.put("Templatelist", list);
@@ -1626,6 +1641,8 @@ public class Content {
      */
     private JSONObject findOid(String oid) {
         JSONObject object = content.eq("_id", oid).find();
+        object = model.ContentDencode(object);
+        object = model.getImgs(object);
         object = getDefault(object);
         object = FillFileToObj(object);
         return object;
@@ -1711,21 +1728,13 @@ public class Content {
                 contentInfo.remove("ogid");
             }
         }
-        if (contentInfo.containsKey("content")) {
-            temp = contentInfo.getString("content");
-            if (StringHelper.InvaildString(temp)) {
-                // temp = codec.DecodeHtmlTag(temp);
-                // temp = codec.decodebase64(temp);
-                contentInfo.escapeHtmlPut("content", temp);
-            }
-        }
-        if (contentInfo.containsKey("image")) {
-            temp = contentInfo.getString("image");
-            if (StringHelper.InvaildString(temp)) {
-                temp = codec.DecodeHtmlTag(temp);
-                contentInfo.put("image", model.getImageUri(temp));
-            }
-        }
+//        if (contentInfo.containsKey("image")) {
+//            temp = contentInfo.getString("image");
+//            if (StringHelper.InvaildString(temp)) {
+//                temp = codec.DecodeHtmlTag(temp);
+//                contentInfo.put("image", model.getImageUri(temp));
+//            }
+//        }
         return contentInfo.toJSONString();
     }
 }
