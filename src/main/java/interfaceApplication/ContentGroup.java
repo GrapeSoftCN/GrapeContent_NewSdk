@@ -724,10 +724,10 @@ public class ContentGroup {
                 object = (JSONObject) array.get(i);
                 content = object.getString("tempContent");
                 list = object.getString("tempList");
-                if (!content.equals("") && !content.equals("0")) {
+                if (StringHelper.InvaildString(content) && !content.equals("0")) {
                     tid += content + ",";
                 }
-                if (!list.equals("") && !list.equals("0")) {
+                if (StringHelper.InvaildString(list) && !list.equals("0")) {
                     tid += list + ",";
                 }
             }
@@ -978,5 +978,22 @@ public class ContentGroup {
     public String getPrevColumn(String wbid) {
         JSONArray array = group.eq("wbid", wbid).select();
         return (array != null && array.size() > 0) ? array.toJSONString() : new JSONArray().toJSONString();
+    }
+    
+    /**
+     * 获取指定网站下的所有栏目数据
+     * 
+     * @param wbid
+     * @return
+     */
+    public String getOgidByName(String wbid,String columnName) {
+        String ogid = "";
+        if (StringHelper.InvaildString(wbid) && StringHelper.InvaildString(columnName)) {
+            JSONObject object = group.eq("name", columnName).eq("wbid", wbid).field("_id").find();
+            if (object != null && object.size() > 0) {
+               ogid = object.getMongoID("_id"); 
+            }
+        }
+        return ogid;
     }
 }

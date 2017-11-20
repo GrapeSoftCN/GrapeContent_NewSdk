@@ -24,20 +24,6 @@ public class CommonModel {
     private String appid = appsProxy.appidString();
 	private final Pattern ATTR_PATTERN = Pattern.compile("<img[^<>]*?\\ssrc=['\"]?(.*?)['\"]?\\s.*?>", Pattern.CASE_INSENSITIVE);
 
-//	/**
-//	 * 发送数据到kafka
-//	 * @param id
-//	 * @param mode
-//	 * @param newstate
-//	 */
-//	public void setKafka(String id, int mode, int newstate) {
-//        APIHost = getconfig("APIHost");
-//        APIAppid = getconfig("appid");
-//	    if (!APIHost.equals("") && !APIAppid.equals("")) {
-//            request.Get(APIHost + "/" + APIAppid + "/sendServer/ShowInfo/getKafkaData/" + id +"/"+ appid + "/int:1/int:" + mode + "/int:" + newstate);
-//        }
-//    }
-	
 	/**
      * 发送数据到kafka
      * @param id
@@ -636,8 +622,6 @@ public class CommonModel {
 				if (StringHelper.InvaildString(wbid)) {
 				    temp = (String)appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + wbid);
 	                Obj = JSONObject.toJSON(temp);
-	                
-	                //{"wbid":{"th":"","is":""}}
                 }
 			}
 			if (Obj != null && Obj.size() > 0) {
