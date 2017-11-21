@@ -207,6 +207,32 @@ public class Content {
     }
 
     /**
+     * 将爬虫爬取的数据添加值数据库
+     * 
+     * @return
+     */
+    @SuppressWarnings("unchecked")
+    public String AddCrawlerContent(String infp, String contentInfo) {
+        int state = 2;
+        Object info = null;
+        String result = rMsg.netMSG(100, "添加失败");
+        JSONObject object = JSONObject.toJSON(contentInfo);
+        if (object != null && object.size() > 0) {
+            if (object.containsKey("ogid")) { // 文章状态
+                String ogid = object.getString("ogid");
+                String temp = new ContentGroup().isPublic(ogid);
+                if (temp.equals("1")) {
+                    state = 0;
+                }
+                object.put("state", state);
+            }
+            info = content.data(object).autoComplete().insertOnce();
+            result = (info != null) ? rMsg.netMSG(0, "添加成功") : result;
+        }
+        return result;
+    }
+
+    /**
      * 发布文章
      * 
      * @param ArticleInfo
@@ -218,7 +244,7 @@ public class Content {
         long currentTime = TimeHelper.nowMillis();
         ArticleInfo = codec.DecodeFastJSON(ArticleInfo);
         JSONObject object = JSONHelper.string2json(ArticleInfo);
-        if (StringHelper.InvaildString(currentWeb)) {
+        if (!StringHelper.InvaildString(currentWeb)) {
             return rMsg.netMSG(1, "当前登录信息已失效,请重新登录后再发布文章");
         }
         if (object == null || object.size() <= 0) {
@@ -230,9 +256,7 @@ public class Content {
                 object.put("time", currentTime);
             }
         }
-        if (StringHelper.InvaildString(currentWeb)) {
-            object.put("wbid", currentWeb);
-        }
+        object.put("wbid", currentWeb);
         if (object.containsKey("ogid")) { // 文章状态
             String ogid = object.getString("ogid");
             String temp = new ContentGroup().isPublic(ogid);
@@ -270,13 +294,12 @@ public class Content {
             // 若文章为视频文章或者超链接文章获取缩略图，同时视频转换为flv,mp4 !!
             info = content.data(info).autoComplete().insertOnce().toString();
             ro = findOid(info);
-            // appsProxy.proxyCall("/sendServer/ShowInfo/getKafkaData/" + info +
-            // "/" + appsProxy.appid() + "/int:1/int:1/int:0");
-            model.setKafka(info, 1, 0);
             result = (ro != null && ro.size() > 0) ? rMsg.netMSG(0, ro) : result;
         } catch (Exception e) {
             nlogger.logout(e);
+            result = rMsg.netMSG(100, "新增文章失败");
         }
+//        model.AddLog(4, "", func, condString);
         return result;
     }
 
@@ -373,6 +396,7 @@ public class Content {
         content.eq("wbid", model.getRWbid(wbid)).eq("state", 2).desc("time").desc("_id");
         array = content.dirty().page(idx, pageSize);
         total = content.count();
+        array = model.ContentDencode(array);
         return rMsg.netPAGE(idx, pageSize, total, (array != null && array.size() > 0) ? model.join(array) : new JSONArray());
     }
 
@@ -411,8 +435,9 @@ public class Content {
      */
     public String findArticle(String oid) {
         String result = rMsg.netMSG(102, "文章不存在");
-        JSONObject obj = content.asc("time").eq("_id", oid).find();
-        int code = isShow(obj);
+        JSONObject obj = content.eq("_id", oid).find();
+//        int code = isShow(obj);
+        int code = 0;
         switch (code) {
         case 0:
             result = getSingleArticle(obj, oid);
@@ -424,7 +449,7 @@ public class Content {
             result = rMsg.netMSG(4, "请先登录");
             break;
         }
-        model.setKafka(oid, 2, 2);
+//        model.setKafka(oid, 2, 2);
         return result;
     }
 
@@ -1277,12 +1302,9 @@ public class Content {
                 content.or().eq("_id", id);
             }
             rb = content.data(object).updateAll() > 0 ? true : false;
-            if (rb) {
-                model.setKafka(oid, 3, NewState);
-                // appsProxy.proxyCall("/sendServer/ShowInfo/getKafkaData/" +
-                // oid + "/" + appsProxy.appid() + "/int:1/int:3/int:" +
-                // NewState);
-            }
+//            if (rb) {
+//                model.setKafka(oid, 3, NewState);
+//            }
         } else {
             rb = false;
         }
@@ -1551,7 +1573,7 @@ public class Content {
             // 点击次数+1
             AddArticleClick(obj);
             // 增加访问用户记录
-            // new ContentRecord().AddReader(id);
+//            new ContentRecord().AddReader(id);
         }
         obj = model.ContentDencode(obj);
         obj = model.getImgs(getDefault(obj));
@@ -1560,7 +1582,7 @@ public class Content {
     }
 
     /**
-     * 获取默认缩略图,后缀信息
+     * 获取默认缩略图
      * 
      * @param object
      * @return
@@ -1576,26 +1598,26 @@ public class Content {
                 if (obj != null && obj.size() > 0) {
                     obj = JSONObject.toJSON(obj.getString(wbid));
                 }
-            }
-            if (object.containsKey("isSuffix")) {
-                isSuffix = object.getString("isSuffix");
-            }
-            if (object.containsKey("content")) {
-                contents = object.getString("content");
-            }
-            if (obj != null && obj.size() > 0) {
-                if (obj.containsKey("thumbnail")) {
-                    thumbnail = obj.getString("thumbnail");
+                if (object.containsKey("isSuffix")) {
+                    isSuffix = object.getString("isSuffix");
                 }
-                if (obj.containsKey("suffix")) {
-                    suffix = obj.getString("suffix");
-                    suffix = AddSuffix(isSuffix, suffix);
+                if (object.containsKey("content")) {
+                    contents = object.getString("content");
                 }
             }
-            contents = StringHelper.InvaildString(contents) ? contents + suffix : "";
+        }
+        if (obj != null && obj.size() > 0) {
+            if (obj.containsKey("thumbnail")) {
+                thumbnail = obj.getString("thumbnail");
+            }
+            if (obj.containsKey("suffix")) {
+                suffix = obj.getString("suffix");
+                suffix = AddSuffix(isSuffix, suffix);
+            }
+            contents = StringHelper.InvaildString(contents) ? contents + suffix : contents;
             object.put("thumbnail", thumbnail);
             object.put("suffix", suffix);
-            object.put("contents", contents);
+            object.put("content", contents);
         }
         return object;
     }
@@ -1610,9 +1632,6 @@ public class Content {
     private String AddSuffix(String suffix, String defaultSuffix) {
         int type = 0;
         if (StringHelper.InvaildString(suffix)) {
-            if (suffix.contains("$numberLong")) {
-                suffix = JSONObject.toJSON(suffix).getString("$numberLong");
-            }
             type = Integer.parseInt(suffix);
             suffix = type != 0 ? defaultSuffix : "";
         }
@@ -1654,7 +1673,7 @@ public class Content {
                 if (userInfo != null && userInfo.size() != 0) {
                     // 获取当前站点的全部下级站点
                     currentWeb = getCurrentId();
-                    currentId = getCWbid(currentId);
+                    currentId = getCWbid(currentWeb);
                     wbid = model.getRWbid(wbid);
                     if (!currentId.contains(wbid)) {
                         code = 1; // 无权查看
