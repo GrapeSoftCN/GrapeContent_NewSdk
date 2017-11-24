@@ -9,6 +9,8 @@ import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
+import com.sun.star.io.TempFile;
+
 import apps.appsProxy;
 import cache.CacheHelper;
 import check.checkHelper;
@@ -82,22 +84,16 @@ public class CommonModel {
         case 2: // 更新XXX栏目
             action = "更新[" + columnName + "]栏目," + condString;
             break;
-        case 3: // 审核文章：
-            action = "";
-            break;
-        case 4: // 在XXX栏目下新增XXX文章
+        case 3: // 在XXX栏目下新增XXX文章
 
             break;
-        case 5: // 更新XXX栏目下XXX文章
+        case 4: // 更新XXX栏目下XXX文章
 
             break;
-        case 6: // 删除XXX栏目下的XXX文章
+        case 5: // 删除XXX栏目下的XXX文章
 
             break;
-        case 7: // 查询文章信息，查询条件为：
-
-            break;
-        case 8: // 查看文章详情，文章名称为：
+        case 6: // 审核文章
 
             break;
 
@@ -125,6 +121,17 @@ public class CommonModel {
                 }
             }
         }
+        return columnName;
+    }
+
+    /**
+     * 获取栏目名称，文章名称
+     * 
+     * @param ogid
+     * @return
+     */
+    private String getArticleName(String id) {
+        String columnName = "";
         return columnName;
     }
 
@@ -239,21 +246,19 @@ public class CommonModel {
      * @return
      */
     public String getRWbid(String wbid) {
-        Object obj;
-        String key = "vID2rID_" + wbid;
+        String value = wbid;
         CacheHelper cacheHelper = new CacheHelper();
-        String value = cacheHelper.get(key);
-        if (value == null) {
-            obj = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/VID2RID/" + wbid);
-            if (obj != null) {
-                value = obj.toString();
-                if (!value.equals("")) {
-                    cacheHelper.setget(key, value, 60 * 1000);
-                }
+        String key = "vID2rID_" + wbid;
+        Object obj = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/VID2RID/" + wbid);
+        if (obj != null) {
+            value = obj.toString();
+            if (StringHelper.InvaildString(value)) {
+                cacheHelper.setget(key, value, 86400);
             }
         }
         return value;
     }
+
 
     /**
      * 文章内容编码，图片地址设置
@@ -420,12 +425,17 @@ public class CommonModel {
      */
     @SuppressWarnings("unchecked")
     public JSONArray getDefaultImage(String wbid, JSONArray array) {
-        String thumbnail = "", suffix = "", tempString = "0";
+        CacheHelper ch = new CacheHelper();
+        String thumbnail = "", suffix = "", tempString = "0", temp;
         int type = 0;
         if (!wbid.equals("") && array != null && array.size() != 0) {
             int l = array.size();
             // 显示默认缩略图
-            String temp = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + getRWbid(wbid)).toString();
+            temp = ch.get("DefaultImage_" + wbid);
+            if (temp == null) {
+                temp = (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + wbid);
+                ch.setget("DefaultImage_" + wbid, temp, 86400);
+            }
             JSONObject Obj = JSONObject.toJSON(temp);
             if (Obj != null && Obj.size() != 0) {
                 if (Obj.containsKey("thumbnail")) {
@@ -676,11 +686,16 @@ public class CommonModel {
      */
     @SuppressWarnings("unchecked")
     public JSONObject getDefaultImage(JSONObject object) {
-        String thumbnail = "";
+        CacheHelper ch = new CacheHelper();
+        String thumbnail = "", temp;
         if (object != null && object.size() != 0) {
             String wbid = object.getString("wbid");
             // 显示默认缩略图
-            String temp = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + wbid).toString();
+            temp = ch.get("DefaultImage_" + wbid);
+            if (temp == null) {
+                temp = (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + wbid);
+                ch.setget("DefaultImage_" + wbid, temp, 86400);
+            }
             JSONObject Obj = JSONObject.toJSON(temp);
             if (Obj != null && Obj.size() != 0) {
                 thumbnail = Obj.getString("thumbnail");
@@ -704,6 +719,7 @@ public class CommonModel {
      */
     @SuppressWarnings("unchecked")
     public JSONArray getDefaultImage(JSONArray array) {
+        CacheHelper ch = new CacheHelper();
         String thumbnail = "", wbid = "", temp;
         JSONObject object, tempObj, Obj = new JSONObject();
         if (array != null && array.size() > 0) {
@@ -714,10 +730,15 @@ public class CommonModel {
                 if (!wbid.contains(temp)) {
                     wbid += temp + ",";
                 }
-                if (StringHelper.InvaildString(wbid)) {
-                    temp = (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + wbid);
-                    Obj = JSONObject.toJSON(temp);
+            }
+            if (StringHelper.InvaildString(wbid)) {
+                wbid = StringHelper.fixString(wbid, ',');
+                temp = ch.get("DefaultImage_" + wbid);
+                if (temp == null) {
+                    temp = (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + getRWbid(wbid));
+                    ch.setget("DefaultImage_" + wbid, temp, 86400);
                 }
+                Obj = JSONObject.toJSON(temp);
             }
             if (Obj != null && Obj.size() > 0) {
                 for (int i = 0; i < l; i++) {

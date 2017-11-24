@@ -1,5 +1,6 @@
 package interfaceApplication;
 
+import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
@@ -7,6 +8,7 @@ import JGrapeSystem.rMsg;
 import Model.CommonModel;
 import apps.appsProxy;
 import cache.CacheHelper;
+import check.checkHelper;
 import interfaceModel.GrapeDBSpecField;
 import interfaceModel.GrapeTreeDBModel;
 import json.JSONHelper;
@@ -30,7 +32,6 @@ public class ContentCache {
         gDbSpecField.importDescription(appsProxy.tableConfig("ContentCache"));
         content.descriptionModel(gDbSpecField);
         content.bindApp();
-        content.enableCheck();// 开启权限检查
 
         se = new session();
         userInfo = se.getDatas();
@@ -56,6 +57,7 @@ public class ContentCache {
         String result = rMsg.netMSG(100, "推送失败");
         String oid = "", temp = "0";
         long state = 0;
+        ArticleInfo = codec.DecodeFastJSON(ArticleInfo);
         JSONObject object = JSONHelper.string2json(ArticleInfo);
         if (wbid != null && !wbid.equals("") && object != null && object.size() != 0) {
             String[] values = wbid.split(",");
@@ -64,7 +66,8 @@ public class ContentCache {
                     object.put("ogid", "");
                 }
                 if (object.containsKey("_id")) {
-                    oid = ((JSONObject) object.get("_id")).getString("$oid");
+                    // oid = ((JSONObject) object.get("_id")).getString("$oid");
+                    oid = object.getMongoID("_id");
                     object.remove("_id");
                 }
                 if (object.containsKey("wbid")) {
@@ -82,7 +85,7 @@ public class ContentCache {
                     }
                     object.put("state", state);
                     code = content.data(object).autoComplete().insertOnce() != null ? 0 : 99;
-                    result = code ==0 ?rMsg.netMSG(0, "推送成功"):result;
+                    result = code == 0 ? rMsg.netMSG(0, "推送成功") : result;
                 }
             }
         }
@@ -136,7 +139,7 @@ public class ContentCache {
                         }
                     }
                     code = content.data(object).autoComplete().insertOnce() != null ? 0 : 99;
-                    result = code ==0 ?rMsg.netMSG(0, "推送成功"):result;
+                    result = code == 0 ? rMsg.netMSG(0, "推送成功") : result;
                 }
             }
         }
@@ -203,7 +206,37 @@ public class ContentCache {
         return rMsg.netPAGE(idx, pageSize, total, model.getImgs(model.getDefaultImage(currentWeb, array)));
     }
 
-    
+    /**
+     * 删除推送的文章
+     * 
+     * @param oid
+     * @return
+     */
+    public String DeletePushArticle(String oid) {
+        int code = -1;
+        String result = rMsg.netMSG(100, "删除失败");
+        String[] value = null;
+        if (StringHelper.InvaildString(oid)) {
+            value = oid.split(",");
+        }
+        if (value != null) {
+            content.or();
+            for (String id : value) {
+                if (StringHelper.InvaildString(id)) {
+                    if (ObjectId.isValid(id) && checkHelper.isInt(id)) {
+                        content.eq("_id", id);
+                    }
+                }
+            }
+            JSONArray cond = JSONArray.toJSONArray(content.condString());
+            if (cond != null && cond.size() > 0) {
+                code = content.deleteAll() > 0 ? 0 : 99;
+            }
+            result = (code == 0) ? rMsg.netMSG(0, "删除成功") : result;
+        }
+        return result;
+    }
+
     @SuppressWarnings("unchecked")
     private JSONObject remoNumberLong(JSONObject object) {
         String temp;

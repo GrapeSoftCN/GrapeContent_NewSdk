@@ -2,12 +2,14 @@ package interfaceApplication;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 import org.bson.types.ObjectId;
 import org.ietf.jgss.Oid;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
+import Concurrency.distributedLocker;
 import JGrapeSystem.rMsg;
 import Model.CommonModel;
 import Model.WsCount;
@@ -15,6 +17,7 @@ import apps.appsProxy;
 import authority.plvDef.UserMode;
 import authority.plvDef.plvType;
 import cache.CacheHelper;
+import check.checkHelper;
 import co.paralleluniverse.strands.channels.Mix.State;
 import httpServer.grapeHttpUnit;
 import interfaceModel.GrapeDBSpecField;
@@ -37,6 +40,8 @@ public class Content {
     private String currentWeb = null;
     private Integer userType = null;
     private CacheHelper ch;
+
+    private static String lockerName = "totalArticle";
 
     public Content() {
         ch = new CacheHelper();
@@ -143,7 +148,11 @@ public class Content {
         JSONArray array = new JSONArray();
         content.or();
         for (String string : list) {
-            content.eq("_id", new ObjectId(string));
+            if (StringHelper.InvaildString(string)) {
+                if (ObjectId.isValid(string) || checkHelper.isInt(string)) {
+                    content.eq("_id", string);
+                }
+            }
         }
         array = content.select();
         return model.join(model.getImgs(model.ContentDencode(array)));
@@ -203,7 +212,7 @@ public class Content {
         String contentInfo = "";
         JSONObject object = JSONObject.toJSON(execRequest.getChannelValue(grapeHttpUnit.formdata).toString());
         contentInfo = object.getString("param");
-        return PublishArticle(contentInfo);
+        return AddCrawlerContent(contentInfo);
     }
 
     /**
@@ -265,7 +274,18 @@ public class Content {
             }
             object.put("state", state);
         }
+        object.put("subID", RandomNum()); // 副id，即_id不能被使用时，使用subID
         return insert(object);
+    }
+
+    /**
+     * 生成十进制随机数
+     * 
+     * @return
+     */
+    private int RandomNum() {
+        int number = new Random().nextInt(2147483647) + 1;
+        return number;
     }
 
     /**
@@ -277,6 +297,7 @@ public class Content {
     @SuppressWarnings("unchecked")
     private String insert(JSONObject contentInfo) {
         String info = null;
+        int state = 0;
         JSONObject ro = null;
         String result = rMsg.netMSG(100, "新增文章失败");
         try {
@@ -288,21 +309,71 @@ public class Content {
             contentInfo.put("dMode", dMode.toJSONString()); // 添加默认删除权限
 
             info = checkparam(contentInfo);
-            if (JSONHelper.string2json(info) != null && info.contains("errorcode")) {
-                return info;
+            JSONObject object = JSONObject.toJSON(info);
+            if (object != null && object.size() > 0) {
+                if (info.contains("errorcode")) {
+                    return info;
+                }
+                state = object.getInt("state");
+                // 若文章为视频文章或者超链接文章获取缩略图，同时视频转换为flv,mp4 !!
+                info = content.data(object).autoComplete().insertOnce().toString();
+                ro = findOid(info);
+                PushGov(ro);// 同步文章到政府信息公开网
+                result = (ro != null && ro.size() > 0) ? rMsg.netMSG(0, ro) : result;
+                // 发送数据到kafka
+                appsProxy.proxyCall("/GrapeSendKafka/SendKafka/sendData2Kafka/" + info + "/int:1/int:1/int:" + state);
             }
-            // 若文章为视频文章或者超链接文章获取缩略图，同时视频转换为flv,mp4 !!
-            info = content.data(info).autoComplete().insertOnce().toString();
-            ro = findOid(info);
-            result = (ro != null && ro.size() > 0) ? rMsg.netMSG(0, ro) : result;
         } catch (Exception e) {
             nlogger.logout(e);
             result = rMsg.netMSG(100, "新增文章失败");
         }
-//        model.AddLog(4, "", func, condString);
         return result;
     }
 
+    /**
+     * 推送文章到政府信息公开网
+     * 
+     * @param object
+     * @return
+     */
+    private String PushGov(JSONObject object) {
+        String result = rMsg.netMSG(100, "同步文章至政府信息公开网失败");
+        if (object != null && object.size() > 0) {
+            String ogid = getConnColumn(object);
+            if (StringHelper.InvaildString(ogid) && !ogid.equals("0")) {
+                // 同步文章到政府信息公开网
+                result = new PushContentToGov().pushToGov(object, ogid);
+            } else {
+                return rMsg.netMSG(3, "无关联栏目id，无法同步文章至政府信息公开网");
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 获取关联的市政府信息公开网栏目id
+     * 
+     * @param object
+     * @return
+     */
+    private String getConnColumn(JSONObject object) {
+        String ogid = "", cols = "";
+        JSONObject tempobj;
+        if (object != null && object.size() > 0) {
+            if (object.containsKey("ogid")) {
+                ogid = object.getString("ogid");
+            }
+            if (StringHelper.InvaildString(ogid)) {
+                tempobj = new ContentGroup().find(ogid);
+                if (tempobj != null && tempobj.size() > 0) {
+                    if (tempobj.containsKey("connColumn")) {
+                        cols = tempobj.getString("connColumn");
+                    }
+                }
+            }
+        }
+        return cols;
+    }
     // 判断栏目类型，若为视频文章，则转换为flv，MP4
 
     // 若为超链接文章，则获取超链接缩略图
@@ -436,11 +507,12 @@ public class Content {
     public String findArticle(String oid) {
         String result = rMsg.netMSG(102, "文章不存在");
         JSONObject obj = content.eq("_id", oid).find();
-//        int code = isShow(obj);
-        int code = 0;
+        int code = isShow(obj);
         switch (code) {
         case 0:
             result = getSingleArticle(obj, oid);
+            // 发送数据到kafka
+            appsProxy.proxyCall("/GrapeSendKafka/SendKafka/sendData2Kafka/" + oid + "/int:1/int:2/int:2");
             break;
         case 1:
             result = rMsg.netMSG(3, "您不属于该单位，无权查看该单位信息");
@@ -449,7 +521,6 @@ public class Content {
             result = rMsg.netMSG(4, "请先登录");
             break;
         }
-//        model.setKafka(oid, 2, 2);
         return result;
     }
 
@@ -495,10 +566,10 @@ public class Content {
      *
      */
     public String ShowFront(String wbid, int idx, int pageSize, String condString) {
-        JSONArray condarray = JSONArray.toJSONArray(condString);
+        JSONArray condarray = model.buildCond(condString);
         JSONArray array = new JSONArray();
         long total = 0;
-        if (condarray != null && condarray.size() != 0) {
+        if (condarray != null && condarray.size() > 0) {
             content.desc("time").eq("wbid", wbid).eq("slevel", 0).where(condarray).field("_id,mainName,image,time,content");
             array = content.dirty().page(idx, pageSize);
             total = content.count();
@@ -532,7 +603,7 @@ public class Content {
         try {
             wbid = model.getRWbid(wbid);
             array = content.eq("wbid", wbid).eq("slevel", 0).eq("ogid", ogid).field("_id,mainName,ogid,time,image").desc("time").desc("sort").desc("_id").limit(20).select();
-            array = model.getImgs(model.ContentDencode(array));
+            array = model.getImgs(array);
             if (array != null && array.size() > 0) {
                 int l = array.size();
                 for (int i = 0; i < l; i++) {
@@ -560,7 +631,9 @@ public class Content {
         if (pageSize <= 0) {
             return rMsg.netMSG(false, "页长度错误");
         }
-        return rMsg.netPAGE(idx, pageSize, content.dirty().count(), content.page(idx, pageSize));
+        JSONArray array = content.page(idx, pageSize);
+        array = setTemplate(array);
+        return rMsg.netPAGE(idx, pageSize, content.dirty().count(), array);
     }
 
     public String PageBy(String wbid, int idx, int pageSize, String condString) {
@@ -578,6 +651,7 @@ public class Content {
             content.where(condArray);
             total = content.dirty().count();
             JSONArray array = content.desc("time").field("_id,mainName,time,wbid,ogid,image,readCount,souce").page(idx, pageSize);
+            array = setTemplate(array); // 设置模版
             out = rMsg.netPAGE(idx, pageSize, total, model.getImgs(array));
         } else {
             out = rMsg.netMSG(false, "条件无效");
@@ -953,22 +1027,32 @@ public class Content {
         }
     }
 
+    /**
+     * 文章统计
+     * 
+     * @param rootID
+     * @return
+     */
     public String totalArticle(String rootID) {
-        CacheHelper ch = new CacheHelper();
-        String rString = ch.get("total_COunt_" + rootID);
-        rootID = model.getRWbid(rootID);
-        if (rString == null || rString.equals("")) {
-            JSONObject json = new JSONObject();
-            JSONObject webInfo = JSONObject.toJSON((String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebInfo/s:" + rootID));
-            json = new WsCount().getAllCount(json, rootID, webInfo.getString(rootID), "");
-            rString = json.toJSONString();
-            ch.setget("total_COunt_" + rootID, rString, 86400);
+        distributedLocker countLocker = distributedLocker.newLocker("totalArticle_" + rootID);
+        String rString = "";
+        if (countLocker.lock()) {// 如果锁定成功
+            CacheHelper ch = new CacheHelper();
+            rString = ch.get("total_COunt_" + rootID);
+            if (rString == null || rString.equals("")) {
+                JSONObject json = new JSONObject();
+                JSONObject webInfo = JSONObject.toJSON((String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebInfo/s:" + rootID));
+                json = new WsCount().getAllCount(json, rootID, webInfo.getString(rootID), "");
+                rString = json.toJSONString();
+                ch.setget("total_COunt_" + rootID, rString, 86400);
+            }
+            countLocker.unlock();
         }
         return rString;
     }
 
     /**
-     * 文章统计
+     * 文章统计,包含开始时间-结束时间
      * 
      * @project GrapeContent
      * @package interfaceApplication
@@ -979,14 +1063,19 @@ public class Content {
      *
      */
     public String total(String rootID, String starTime, String endTime) {
-        String rString = ch.get("total_time_Count_" + rootID);
-        rootID = model.getRWbid(rootID);
-        if (rString == null || rString.equals("")) {
-            JSONObject json = new JSONObject();
-            JSONObject webInfo = JSONObject.toJSON(appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebInfo/s:" + rootID).toString());
-            json = new WsCount().getAllCount(json, rootID, webInfo.getString(rootID), "", Long.parseLong(starTime), Long.parseLong(endTime));
-            rString = json.toJSONString();
-            ch.setget("total_time_Count_" + rootID, rString, 86400);
+        distributedLocker countLocker = distributedLocker.newLocker("total_time_Count_" + rootID);
+        String rString = "";
+        if (countLocker.lock()) {
+            rString = ch.get("total_time_Count_" + rootID);
+            rootID = model.getRWbid(rootID);
+            if (rString == null || rString.equals("")) {
+                JSONObject json = new JSONObject();
+                JSONObject webInfo = JSONObject.toJSON(appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebInfo/s:" + rootID).toString());
+                json = new WsCount().getAllCount(json, rootID, webInfo.getString(rootID), "", Long.parseLong(starTime), Long.parseLong(endTime));
+                rString = json.toJSONString();
+                ch.setget("total_time_Count_" + rootID, rString, 86400);
+            }
+            countLocker.unlock();
         }
         return rString;
     }
@@ -1005,14 +1094,18 @@ public class Content {
      *
      */
     public String totalColumn(String rootID, String starTime, String endTime) {
-        CacheHelper ch = new CacheHelper();
-        String rString = ch.get("total_column_Count_" + rootID);
-        rootID = model.getRWbid(rootID);
-        if (rString == null || rString.equals("")) {
-            JSONObject json = new JSONObject();
-            json = new WsCount().getChannleCount(rootID, Long.parseLong(starTime), Long.parseLong(endTime));
-            rString = json.toJSONString();
-            ch.setget("total_column_Count_" + rootID, rString, 86400);
+        JSONObject json = new JSONObject();
+        distributedLocker countLocker = distributedLocker.newLocker("total_column_Count" + rootID);
+        String rString = "";
+        if (countLocker.lock()) {
+            rString = ch.get("total_column_Count_" + rootID);
+            if (rString == null || rString.equals("")) {
+                rootID = model.getRWbid(rootID);
+                json = new WsCount().getChannleCount(rootID, Long.parseLong(starTime), Long.parseLong(endTime));
+                rString = json.toJSONString();
+                ch.setget("total_column_Count_" + rootID, rString, 86400);
+            }
+            countLocker.unlock();
         }
         return rString;
     }
@@ -1284,6 +1377,40 @@ public class Content {
     }
 
     /**
+     * 批量查询文章，针对于推送文章到微信
+     * 
+     * @project GrapeContent
+     * @package interfaceApplication
+     * @file Content.java
+     * 
+     * @param ids
+     * @return
+     *
+     */
+    public String FindWechatArticle(String ids) {
+        JSONArray array = null;
+        String[] value = null;
+        if (ids != null && !ids.equals("") && !ids.equals("null")) {
+            value = ids.split(",");
+        }
+        if (value != null) {
+            content.or();
+            for (String string : value) {
+                content.eq("_id", string);
+            }
+            array = content.field("_id,mainName,author,content,desp,image,wbid").limit(8).select();
+        }
+        if (array != null && array.size() > 0) {
+            JSONObject object = (JSONObject) array.get(0);
+            String wbid = object.getString("wbid");
+            array = model.ContentDencode(array);
+            array = model.getDefaultImage(wbid, array);
+            array = model.getImgs(array);
+        }
+        return (array != null && array.size() > 0) ? array.toString() : new JSONArray().toJSONString();
+    }
+
+    /**
      * 文章审核操作
      * 
      * @param oid
@@ -1302,9 +1429,10 @@ public class Content {
                 content.or().eq("_id", id);
             }
             rb = content.data(object).updateAll() > 0 ? true : false;
-//            if (rb) {
-//                model.setKafka(oid, 3, NewState);
-//            }
+            if (rb) {
+                // 发送数据到kafka
+                appsProxy.proxyCall("/GrapeSendKafka/SendKafka/sendData2Kafka/" + oid + "/int:1/int:3/int:" + NewState);
+            }
         } else {
             rb = false;
         }
@@ -1353,7 +1481,7 @@ public class Content {
                 object = (JSONObject) array.get(i);
                 value = object.getString("ogid");
                 if (tempObj != null && tempObj.size() != 0) {
-                    temp = tempObj.getString("value");
+                    temp = tempObj.getString(value);
                     if (StringHelper.InvaildString(temp)) {
                         values = temp.split(",");
                         content = values[0];
@@ -1573,7 +1701,7 @@ public class Content {
             // 点击次数+1
             AddArticleClick(obj);
             // 增加访问用户记录
-//            new ContentRecord().AddReader(id);
+            // new ContentRecord().AddReader(id);
         }
         obj = model.ContentDencode(obj);
         obj = model.getImgs(getDefault(obj));

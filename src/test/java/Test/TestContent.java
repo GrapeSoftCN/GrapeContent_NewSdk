@@ -1,10 +1,15 @@
 package Test;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+import org.bson.types.ObjectId;
 import org.json.simple.JSONObject;
 
 import httpServer.booter;
 import nlogger.nlogger;
 import security.codec;
+import time.TimeHelper;
 
 public class TestContent {
     public static void main(String[] args) {
@@ -21,5 +26,20 @@ public class TestContent {
 //    	System.out.println(codec.DecodeFastJSON(string));
 //    	string = codec.DecodeFastJSON(string);
 //    	System.out.println(JSONObject.toJSON(string));
+        
+//        
+//        Date dates = null;
+//        try {
+//            
+//            String date = TimeHelper.stampToDate(TimeHelper.nowMillis());
+//            System.out.println(date);
+//            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+//            dates = sdf.parse(date);
+//            System.out.println(sdf.format(dates));
+//        } catch (Exception e) {
+//            nlogger.logout(e);
+//        }
+//        System.out.println(Integer.toHexString(200));
+//        System.out.println(Integer.parseInt("c8", 16));
     }
 }
