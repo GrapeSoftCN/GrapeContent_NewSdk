@@ -44,6 +44,85 @@ public class CommonModel {
     }
 
     /**
+     * 设置栏目模版到文章信息
+     * 
+     * @param array
+     * @return
+     */
+    @SuppressWarnings("unchecked")
+    public JSONArray setTemplate(JSONArray array) {
+        JSONObject object;
+        String[] values;
+        String value, list = "", content = "", temp;
+        array = ContentDencode(array); // 解码
+        if (array == null || array.size() <= 0) {
+            return array;
+        }
+        JSONObject tempObj = getTemplate(array);
+        if (tempObj != null && tempObj.size() > 0) {
+            for (int i = 0; i < array.size(); i++) {
+                object = (JSONObject) array.get(i);
+                value = object.getString("ogid");
+                if (tempObj != null && tempObj.size() != 0) {
+                    temp = tempObj.getString(value);
+                    if (StringHelper.InvaildString(temp)) {
+                        values = temp.split(",");
+                        content = values[0];
+                        list = values[1];
+                    }
+                }
+                object.put("TemplateContent", content);
+                object.put("Templatelist", list);
+                array.set(i, object);
+            }
+        }
+        return array;
+    }
+
+    /**
+     * 获取栏目模版信息
+     * 
+     * @param array
+     * @return
+     */
+    @SuppressWarnings("unchecked")
+    private JSONObject getTemplate(JSONArray array) {
+        JSONObject object;
+        String id = "", temp, column;
+        String TemplateContent, Templatelist, tid;
+        JSONObject tempObj = new JSONObject();
+        if (array != null && array.size() >= 0) {
+            for (Object obj : array) {
+                object = (JSONObject) obj;
+                temp = object.getString("ogid");
+                if (!id.contains(temp)) {
+                    id += temp + ",";
+                }
+            }
+        }
+        if (StringHelper.InvaildString(id)) {
+            id = StringHelper.fixString(id, ',');
+            column = new ContentGroup().getGroupById(id);
+            array = JSONArray.toJSONArray(column);
+        }
+        if (array != null && array.size() != 0) {
+            int l = array.size();
+            for (int i = 0; i < l; i++) {
+                object = (JSONObject) array.get(i);
+                if (object != null && object.size() != 0) {
+                    TemplateContent = object.getString("TemplateContent");
+                    Templatelist = object.getString("TemplateList");
+                    tid = object.getString("_id");
+                    if (!TemplateContent.equals("") && !Templatelist.equals("")) {
+                        tempObj.put(tid, TemplateContent + "," + Templatelist);
+                    }
+                }
+            }
+        }
+        return tempObj;
+    }
+
+    /**
      * 发送数据到kafka
      * 
      * @param id
@@ -249,7 +328,7 @@ public class CommonModel {
         String value = wbid;
         CacheHelper cacheHelper = new CacheHelper();
         String key = "vID2rID_" + wbid;
-        Object obj = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/VID2RID/" + wbid);
+        Object obj = (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/VID2RID/" + wbid);
         if (obj != null) {
             value = obj.toString();
             if (StringHelper.InvaildString(value)) {
@@ -258,7 +337,6 @@ public class CommonModel {
         }
         return value;
     }
-
 
     /**
      * 文章内容编码，图片地址设置
@@ -270,9 +348,7 @@ public class CommonModel {
         String temp = "";
         if (object != null && object.size() > 0) {
             if (object.containsKey("content")) {
-                temp = object.getString("content");
-                // temp = dencode(temp);
-                object.escapeHtmlPut("content", temp);
+                object.escapeHtmlPut("content", object.getString("content"));
             }
             if (object.containsKey("image")) {
                 temp = object.getString("image");
@@ -311,11 +387,9 @@ public class CommonModel {
      */
     @SuppressWarnings("unchecked")
     public JSONObject ContentDencode(JSONObject object) {
-        Object temp = "";
         if (object != null && object.size() > 0) {
             if (object.containsKey("content")) {
-                temp = object.escapeHtmlGet("content");
-                object.put("content", temp);
+                object.put("content", object.escapeHtmlGet("content"));
             }
         }
         return object;

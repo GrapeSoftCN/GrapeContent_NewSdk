@@ -28,7 +28,6 @@ public class ContentGroup {
     private session se;
     private JSONObject userInfo = null;
     private String currentWeb = null;
-    private Integer userType = null;
 
     public ContentGroup() {
         model = new CommonModel();
@@ -38,13 +37,11 @@ public class ContentGroup {
         gDbSpecField.importDescription(appsProxy.tableConfig("ContentGroup"));
         group.descriptionModel(gDbSpecField);
         group.bind();
-        // group.enableCheck();//开启权限检查
 
         se = new session();
         userInfo = se.getDatas();
         if (userInfo != null && userInfo.size() != 0) {
             currentWeb = userInfo.getString("currentWeb"); // 当前用户所属网站id
-            userType = userInfo.getInt("userType");
         }
     }
 
@@ -113,6 +110,7 @@ public class ContentGroup {
      * @return
      *
      */
+    @SuppressWarnings("unchecked")
     private String Add(JSONObject groupinfo) {
         JSONObject obj = checkColumn(groupinfo);
         if (obj != null && obj.size() > 0) {
@@ -276,6 +274,7 @@ public class ContentGroup {
 
     /**
      * 删除指定站点下的栏目信息
+     * 
      * @param wbid
      * @return
      */
@@ -576,7 +575,6 @@ public class ContentGroup {
         if (!StringHelper.InvaildString(wbid)) {
             return rMsg.netPAGE(idx, pageSize, total, new JSONArray());
         }
-        System.out.println("wbid:  " + wbid);
         wbid = model.getRWbid(wbid);
         if (StringHelper.InvaildString(GroupInfo)) {
             JSONArray condArray = model.buildCond(GroupInfo);
@@ -589,7 +587,7 @@ public class ContentGroup {
         }
         group.eq("wbid", wbid);
         total = group.dirty().count();
-        array = group.page(idx, pageSize);
+        array = group.desc("sort").asc("_id").page(idx, pageSize);
         return rMsg.netPAGE(idx, pageSize, total, join(array));
     }
 
@@ -608,18 +606,23 @@ public class ContentGroup {
         String tempID = ogid;
         if (ogid != null && !ogid.equals("")) {
             while (temp != null) {
-                if (!tempID.equals("0")) {
-                    temp = group.eq("_id", tempID).field("_id,wbid,name,fatherid").find();
-                    if (temp != null) {
-                        list.add(temp);
-                        if (temp.containsKey("fatherid")) {
-                            tempID = temp.getString("fatherid");
-                            if (tempID.equals("0")) {
+//                temp = null;
+                if (StringHelper.InvaildString(tempID) && !tempID.equals("0")) {
+                    if (ObjectId.isValid(tempID) || checkHelper.isInt(tempID)) {
+                        temp = group.eq("_id", tempID).field("_id,wbid,name,fatherid").find();
+                        if (temp != null && temp.size() > 0) {
+                            list.add(temp);
+                            if (temp.containsKey("fatherid")) {
+                                tempID = temp.getString("fatherid");
+                                if (tempID.equals("0")) {
+                                    temp = null;
+                                }
+                            } else {
                                 temp = null;
                             }
-                        } else {
-                            temp = null;
                         }
+                    } else {
+                        temp = null;
                     }
                 } else {
                     temp = null;
@@ -807,10 +810,14 @@ public class ContentGroup {
                 content = object.getString("tempContent");
                 list = object.getString("tempList");
                 if (StringHelper.InvaildString(content) && !content.equals("0")) {
-                    tid += content + ",";
+                    if (!tid.contains(content)) {
+                        tid += content + ",";
+                    }
                 }
                 if (StringHelper.InvaildString(list) && !list.equals("0")) {
-                    tid += list + ",";
+                    if (!tid.contains(list)) {
+                        tid += list + ",";
+                    }
                 }
             }
             if (!tid.equals("") && tid.length() > 0) {
