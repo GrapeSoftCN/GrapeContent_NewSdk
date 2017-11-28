@@ -1900,6 +1900,8 @@ public class Content {
             total = content.dirty().count();
             array = content.page(idx, pageSize);
         }
+        array = model.ContentDencode(array);
+        array = model.getImgs(array);
         return rMsg.netPAGE(idx, pageSize, total, array);
 //        return (array != null && array.size() > 0) ? array.toJSONString() : null;
     }
@@ -1911,13 +1913,15 @@ public class Content {
      * @param pageSize
      * @return
      */
-    public JSONArray getAllArticleInfo() {
+    public String getAllArticleInfo() {
         JSONArray array = null;
         JSONArray condArray = getCondString();
         if (condArray != null && condArray.size() > 0) {
             array = content.or().where(condArray).select();
         }
-        return array;
+        array = model.ContentDencode(array);
+        array = model.getImgs(array);
+        return rMsg.netMSG(true, array);
     }
 
     private JSONArray getCondString() {
