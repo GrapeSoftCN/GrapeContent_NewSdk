@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
@@ -13,6 +15,7 @@ import Concurrency.distributedLocker;
 import JGrapeSystem.rMsg;
 import Model.CommonModel;
 import Model.WsCount;
+import apps.appIns;
 import apps.appsProxy;
 import authority.plvDef.UserMode;
 import authority.plvDef.plvType;
@@ -43,17 +46,19 @@ public class Content {
     private Integer userType = null;
     private CacheHelper ch;
 
+    private static final long delay = 3600;
+
     // private static String lockerName = "totalArticle";
 
     private GrapeTreeDBModel getDB() {
-    	GrapeTreeDBModel _content = new GrapeTreeDBModel();
-    	GrapeDBSpecField _gDbSpecField = new GrapeDBSpecField();
+        GrapeTreeDBModel _content = new GrapeTreeDBModel();
+        GrapeDBSpecField _gDbSpecField = new GrapeDBSpecField();
         _gDbSpecField.importDescription(appsProxy.tableConfig("Content"));
-        _content.descriptionModel(gDbSpecField);
+        _content.descriptionModel(_gDbSpecField);
         _content.bindApp();
         return _content;
     }
-    
+
     public Content() {
         ch = new CacheHelper();
         model = new CommonModel();
@@ -1911,7 +1916,8 @@ public class Content {
         array = model.ContentDencode(array);
         array = model.getImgs(array);
         return rMsg.netPAGE(idx, pageSize, total, array);
-//        return (array != null && array.size() > 0) ? array.toJSONString() : null;
+        // return (array != null && array.size() > 0) ? array.toJSONString() :
+        // null;
     }
 
     /**
@@ -1919,94 +1925,107 @@ public class Content {
      * 
      * @param idx
      * @param pageSize
-     * @return
-    public String getAllArticleInfo() {
-        JSONArray array = null;
-        JSONArray condArray = getCondString();
-        if (condArray != null && condArray.size() > 0) {
-            array = content.or().where(condArray).select();
-        }
-        array = model.ContentDencode(array);
-        array = model.getImgs(array);
-        return rMsg.netMSG(true, array);
-    }
-    */
-    
-    /**检查全部内容信息是否包含隐私内容
-     * @param perfix	URL前缀
-     * @return			事件唯一ID
+     * @return public String getAllArticleInfo() { JSONArray array = null;
+     *         JSONArray condArray = getCondString(); if (condArray != null &&
+     *         condArray.size() > 0) { array =
+     *         content.or().where(condArray).select(); } array =
+     *         model.ContentDencode(array); array = model.getImgs(array); return
+     *         rMsg.netMSG(true, array); }
+     */
+
+    /**
+     * 检查全部内容信息是否包含隐私内容
+     * 
+     * @param perfix
+     *            URL前缀
+     * @return 事件唯一ID
      */
     @SuppressWarnings("unchecked")
-	public String checkAllArticle(String perfix) {
-    	String _eventName = StringHelper.numUUID() + "_" + StringHelper.shortUUID();
+    public String checkAllArticle(String perfix) {
+        String _eventName = StringHelper.numUUID() + "_" + StringHelper.shortUUID();
         JSONArray condArray = getCondString();
         boolean rb = false;
         if (condArray != null && condArray.size() > 0) {
-        	(new Thread( ()-> {
-        		String eventName = _eventName;
-        		CacheHelper cache = new CacheHelper();
-        		JSONArray rArray = content.scan(( _array )->{
-            		JSONArray array = model.ContentDencode(_array);
-            		JSONObject json,rJson;
-            		JSONArray _rArray = new JSONArray();
-            		for(Object object : array) {
-            			json = (JSONObject )object;
-            			privacyPolicy pp = new privacyPolicy();
-            			if( pp.scanText( json.getString("content") ) != null ) {
-            				rJson = new JSONObject();
-            				rJson.put("_id", json.get("_id"));
-            				rJson.put("title", json.get("title"));
-            				_rArray.add(rJson);
-            			}
-            			cache.setget(eventName, rMsg.netMSG(false, perfix + json.getString("_id")) );//写入当前任务进程
-            		}
-            		return _rArray;
-            	},50); 
-        		cache.setget(eventName, rMsg.netMSG(true,rArray));//完成任务
-        	})).start();
-        	rb = true;
+            GrapeTreeDBModel content = getDB();
+            appIns context = appsProxy.getCurrentAppInfo();
+            (new Thread(() -> {
+                appsProxy.setCurrentAppInfo(context);
+                String eventName = _eventName;
+                CacheHelper cache = new CacheHelper();
+                JSONArray rArray = content.or().where(condArray).scan((_array) -> {
+                    JSONArray array = model.ContentDencode(_array);
+                    JSONObject json, rJson;
+                    JSONArray _rArray = new JSONArray();
+                     String perfixs ="http://tlqwgk.tlcz.gov.cn/wgjd/details.html.pt@aid=";
+                    for (Object object : array) {
+                        json = (JSONObject) object;
+                        System.out.println(json.getString("_id"));
+                        privacyPolicy pp = new privacyPolicy();
+                        System.out.println(json);
+                        String string = pp.scanText(json.getString("content"));
+                        System.out.println(string);
+                        if (string != null) {
+                            if (pp.hasPrivacyPolicy()) {
+                                rJson = new JSONObject();
+                                rJson.put("_id", json.get("_id"));
+                                rJson.put("title", json.get("mainName"));
+                                _rArray.add(rJson);
+                            }
+                        }
+                        cache.setget(eventName, rMsg.netMSG(false, perfixs + json.getString("_id")), delay);// 写入当前任务进程
+                    }
+                    return _rArray;
+                }, 50);
+                cache.setget(eventName, rMsg.netMSG(true, rArray), delay);// 完成任务
+            })).start();
+            rb = true;
         }
         return rMsg.netMSG(true, rb ? _eventName : "");
     }
-    
-    /**获得事件当前处理进度
-     * @param eventName	事件ID
-     * @return	事件当前处理的内容
+
+    /**
+     * 获得事件当前处理进度
+     * 
+     * @param eventName
+     *            事件ID
+     * @return 事件当前处理的内容
      */
     public String getEventProgress(String eventName) {
-    	CacheHelper cache = new CacheHelper();
-    	JSONObject rJson = JSONObject.toJSON(cache.get(eventName));
-    	String content = "";
-    	if( rJson != null && rJson.containsKey("errcode") && rJson.getInt("errcode") == 1  ) {
-    		content = rJson.getString("message");
-    	}
-    	return rMsg.netMSG(true, content);
+        CacheHelper cache = new CacheHelper();
+        System.out.println(cache.get(eventName));
+        JSONObject rJson = JSONObject.toJSON(cache.get(eventName));
+        String content = "";
+        if (rJson != null && rJson.containsKey("errorcode") && rJson.getInt("errorcode") == 1) {
+            content = rJson.getString("message");
+        }
+        return rMsg.netMSG(true, content);
     }
-    
-    /**获得事件结果报告
-     * @param eventName	事件名称
-     * @return	报告EXCEL或者错误信息
+
+    /**
+     * 获得事件结果报告
+     * 
+     * @param eventName
+     *            事件名称
+     * @return 报告EXCEL或者错误信息
      */
-    public Object getEventReport(String eventName) {
-    	CacheHelper cache = new CacheHelper();
-    	JSONObject rJson = JSONObject.toJSON(cache.get(eventName));
-    	String content = "";
-    	if( rJson != null && rJson.containsKey("errcode") && rJson.getInt("errcode") == 1  ) {
-    		content = rJson.getString("message");
-    		if( content != null ) {
-    			try {
-					return excelHelper.out(content);
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					nlogger.login(content);
-					nlogger.logout(e, "导出异常");
-					e.printStackTrace();
-				}
-    		}
-    	}
-    	return rMsg.netMSG(false, "error");
+    public Object getEventReport(String eventName, String file) {
+        CacheHelper cache = new CacheHelper();
+        JSONObject rJson = JSONObject.toJSON(cache.get(eventName));
+        String content = "";
+        if (rJson != null && rJson.containsKey("errorcode") && rJson.getInt("errorcode") == 0) {
+            content = rJson.getString("message");
+            if (content != null) {
+                try {
+                    return excelHelper.out(content);
+                } catch (IOException e) {
+                    nlogger.login(content);
+                    nlogger.logout(e, "导出异常");
+                    e.printStackTrace();
+                }
+            }
+        }
+        return rMsg.netMSG(false, "error");
     }
-    
 
     private JSONArray getCondString() {
         JSONArray condArray = null;
