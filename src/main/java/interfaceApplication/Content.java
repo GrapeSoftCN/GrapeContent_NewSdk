@@ -38,7 +38,6 @@ import time.TimeHelper;
 
 public class Content {
     private GrapeTreeDBModel content;
-    private GrapeDBSpecField gDbSpecField;
     private CommonModel model;
     private session se;
     private JSONObject userInfo = null;

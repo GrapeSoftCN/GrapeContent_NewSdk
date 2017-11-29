@@ -18,7 +18,7 @@ public class TestContent {
         try {
             System.out.println("GrapeContent");
             System.setProperty("AppName", "GrapeContent");
-            booter.start(1006);
+            booter.start(1008);
         } catch (Exception e) {
             nlogger.logout(e);
         } 
