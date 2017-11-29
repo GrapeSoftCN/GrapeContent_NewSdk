@@ -1532,7 +1532,8 @@ public class Content {
         if (condArray != null && condArray.size() != 0) {
             switch (type) {
             case 1: // 前台搜索
-                object = getConnColumn(condArray);
+                // object = getConnColumn(condArray);
+                object = getNextColumn(condArray);
                 break;
             case 2: // 后台搜索
                 object = getNextColumn(condArray);
@@ -1585,9 +1586,9 @@ public class Content {
      * @param condArray
      * @return
      */
-    @SuppressWarnings({ "unchecked", "null" })
+    @SuppressWarnings({ "unchecked" })
     private JSONObject getNextColumn(JSONArray condArray) {
-        JSONObject object = null, tempobj = null;
+        JSONObject object = null, tempobj = new JSONObject();
         String key = "", value = "";
         if (condArray != null && condArray.size() != 0) {
             for (Object obj : condArray) {
@@ -1955,26 +1956,29 @@ public class Content {
                     JSONArray array = model.ContentDencode(_array);
                     JSONObject json, rJson;
                     JSONArray _rArray = new JSONArray();
-                     String perfixs ="http://tlqwgk.tlcz.gov.cn/wgjd/details.html.pt@aid=";
-                    for (Object object : array) {
-                        json = (JSONObject) object;
-                        System.out.println(json.getString("_id"));
-                        privacyPolicy pp = new privacyPolicy();
-                        System.out.println(json);
-                        String string = pp.scanText(json.getString("content"));
-                        System.out.println(string);
-                        if (string != null) {
-                            if (pp.hasPrivacyPolicy()) {
-                                rJson = new JSONObject();
-                                rJson.put("_id", json.get("_id"));
-                                rJson.put("title", json.get("mainName"));
-                                _rArray.add(rJson);
+                    String perfixs = "http://tlqwgk.tlcz.gov.cn/wwgk/details.html.pt@aid=";
+                    if (array != null && array.size() > 0) {
+                        for (Object object : array) {
+                            json = (JSONObject) object;
+                            System.out.println(json.getString("_id"));
+                            privacyPolicy pp = new privacyPolicy();
+//                            System.out.println(json.getString("content"));
+                            String string = pp.scanText(json.getString("content"));
+                            System.out.println("....ok");
+                            if (string != null) {
+                                if (pp.hasPrivacyPolicy()) {
+                                    rJson = new JSONObject();
+                                    rJson.put("_id", perfixs + json.getString("_id"));
+                                    rJson.put("title", json.get("mainName"));
+                                    _rArray.add(rJson);
+                                }
                             }
+                            cache.setget(eventName, rMsg.netMSG(false, perfixs + json.getString("_id")), delay);// 写入当前任务进程
                         }
-                        cache.setget(eventName, rMsg.netMSG(false, perfixs + json.getString("_id")), delay);// 写入当前任务进程
                     }
+
                     return _rArray;
-                }, 50);
+                }, 100);
                 cache.setget(eventName, rMsg.netMSG(true, rArray), delay);// 完成任务
             })).start();
             rb = true;
