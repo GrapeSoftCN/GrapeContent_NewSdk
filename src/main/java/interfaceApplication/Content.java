@@ -12,6 +12,8 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.jsoup.Jsoup;
 
+import com.alibaba.druid.sql.visitor.functions.Now;
+
 import Concurrency.distributedLocker;
 import JGrapeSystem.rMsg;
 import Model.CommonModel;
@@ -1942,8 +1944,8 @@ public class Content {
      * @return 事件唯一ID
      */
     @SuppressWarnings("unchecked")
-    public String checkAllArticle(String perfix) {
-        perfix = codec.encodeFastJSON(perfix);
+    public String checkAllArticle(String _perfix) {
+        String perfix = codec.encodeFastJSON(_perfix);
         String _eventName = StringHelper.numUUID() + "_" + StringHelper.shortUUID();
         JSONArray condArray = getCondString();
         boolean rb = false;
@@ -1955,35 +1957,33 @@ public class Content {
                 String eventName = _eventName;
                 CacheHelper cache = new CacheHelper();
                 JSONArray rArray = content.or().where(condArray).scan((_array) -> {
-                    int  i = 0;
+                    long i = 0;
                     JSONArray array = model.ContentDencode(_array);
                     JSONObject json, rJson;
                     JSONArray _rArray = new JSONArray();
-                    String perfixs = "http://tlqwgk.tlcz.gov.cn/wgjd/details_login.html.pt@aid=";
                     if (array != null && array.size() > 0) {
                         for (Object object : array) {
                             i++;
                             json = (JSONObject) object;
                             System.out.println(json.getString("_id"));
                             privacyPolicy pp = new privacyPolicy();
-                            // System.out.println(json.getString("content"));
+                            //System.out.println(json.getString("content"));
                             String string = pp.scanText( Jsoup.parse(json.getString("content")).text() );
                             System.out.println("....ok");
                             if (string != null) {
                                 if (pp.hasPrivacyPolicy()) {
                                     rJson = new JSONObject();
-                                    rJson.put("_id", perfixs + json.getString("_id"));
+                                    rJson.put("_id", perfix + json.getString("_id"));
                                     rJson.put("title", json.get("mainName"));
                                     _rArray.add(rJson);
                                 }
                             }
-                            System.out.println("temp: "+i);
-                            cache.setget(eventName, rMsg.netMSG(false, perfixs + json.getString("_id")), delay);// 写入当前任务进程
+                            //System.out.println("temp: "+i);
+                            cache.setget(eventName, rMsg.netMSG(false, perfix + json.getString("_id")), delay);// 写入当前任务进程
                         }
                     }
-
                     return _rArray;
-                }, 1000,10);
+                }, 100,10);
                 cache.setget(eventName, rMsg.netMSG(true, rArray), delay);// 完成任务
             })).start();
             rb = true;
