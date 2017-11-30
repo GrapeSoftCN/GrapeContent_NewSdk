@@ -10,6 +10,7 @@ import java.util.regex.Pattern;
 import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import org.jsoup.Jsoup;
 
 import Concurrency.distributedLocker;
 import JGrapeSystem.rMsg;
@@ -1942,6 +1943,7 @@ public class Content {
      */
     @SuppressWarnings("unchecked")
     public String checkAllArticle(String perfix) {
+        perfix = codec.encodeFastJSON(perfix);
         String _eventName = StringHelper.numUUID() + "_" + StringHelper.shortUUID();
         JSONArray condArray = getCondString();
         boolean rb = false;
@@ -1953,17 +1955,19 @@ public class Content {
                 String eventName = _eventName;
                 CacheHelper cache = new CacheHelper();
                 JSONArray rArray = content.or().where(condArray).scan((_array) -> {
+                    int  i = 0;
                     JSONArray array = model.ContentDencode(_array);
                     JSONObject json, rJson;
                     JSONArray _rArray = new JSONArray();
-                    String perfixs = "http://tlqwgk.tlcz.gov.cn/wwgk/details.html.pt@aid=";
+                    String perfixs = "http://tlqwgk.tlcz.gov.cn/wgjd/details_login.html.pt@aid=";
                     if (array != null && array.size() > 0) {
                         for (Object object : array) {
+                            i++;
                             json = (JSONObject) object;
                             System.out.println(json.getString("_id"));
                             privacyPolicy pp = new privacyPolicy();
-//                            System.out.println(json.getString("content"));
-                            String string = pp.scanText(json.getString("content"));
+                            // System.out.println(json.getString("content"));
+                            String string = pp.scanText( Jsoup.parse(json.getString("content")).text() );
                             System.out.println("....ok");
                             if (string != null) {
                                 if (pp.hasPrivacyPolicy()) {
@@ -1973,12 +1977,13 @@ public class Content {
                                     _rArray.add(rJson);
                                 }
                             }
+                            System.out.println("temp: "+i);
                             cache.setget(eventName, rMsg.netMSG(false, perfixs + json.getString("_id")), delay);// 写入当前任务进程
                         }
                     }
 
                     return _rArray;
-                }, 100);
+                }, 1000,10);
                 cache.setget(eventName, rMsg.netMSG(true, rArray), delay);// 完成任务
             })).start();
             rb = true;
@@ -2020,6 +2025,36 @@ public class Content {
             if (content != null) {
                 try {
                     return excelHelper.out(content);
+                } catch (IOException e) {
+                    nlogger.login(content);
+                    nlogger.logout(e, "导出异常");
+                    e.printStackTrace();
+                }
+            }
+        }
+        return rMsg.netMSG(false, "error");
+    }
+
+    public Object getReport(String eventName, String file) {
+        JSONObject obj;
+        CacheHelper cache = new CacheHelper();
+        JSONObject rJson = JSONObject.toJSON(cache.get(eventName));
+        String content = "";
+        if (rJson != null && rJson.containsKey("errorcode") && rJson.getInt("errorcode") == 0) {
+            content = rJson.getString("message");
+            if (content != null) {
+                try {
+                    String prefix = "http://tlqwgk.tlcz.gov.cn/wgjd/details_login.html.pt@aid=";
+                    JSONArray array = JSONArray.toJSONArray(content);
+                    for (int i = 0; i < array.size(); i++) {
+                        obj = (JSONObject) array.get(i);
+                        String id = obj.getString("_id");
+//                        id = id.replace("details", "details_login");
+                        obj.put("_id", prefix+id);
+                        System.out.println(obj);
+                        array.set(i, obj);
+                    }
+                    return excelHelper.out(array.toJSONString());
                 } catch (IOException e) {
                     nlogger.login(content);
                     nlogger.logout(e, "导出异常");

@@ -88,13 +88,7 @@ public class ContentGroup {
         }
         if (!result.contains("errorcode")) {
             JSONObject object = group.eq("_id", result).find();
-            // JSONObject object = group.eq("wbid", wbid).eq("name",
-            // groupInfo.getString("name")).find();
-            // result = (object != null && object.size() > 0) ? rMsg.netMSG(0,
-            // object.toString()) : result;
             result = object.toString();
-            // model.AddLog(0, object.getString("name"), "GroupInsert", ""); //
-            // 新增栏目
         }
         return result;
     }
@@ -591,6 +585,32 @@ public class ContentGroup {
         return rMsg.netPAGE(idx, pageSize, total, join(array));
     }
 
+//    // 获取链接栏目id
+//    private String getLinkOgid(String ogids) {
+//        String[] value = null;
+//        JSONArray array = null;
+//        if (!StringHelper.InvaildString(ogids)) {
+//            return rMsg.netMSG(1, "无效栏目id");
+//        }
+//        value = ogids.split(",");
+//        if (value!=null) {
+//            group.or();
+//            for (String ogid : value) {
+//                if (StringHelper.InvaildString(ogid)) {
+//                    if (ObjectId.isValid(ogid) || checkHelper.isInt(ogid)) {
+//                        group.eq("_id", ogid);
+//                    }
+//                }
+//            }
+//            if (group.getCondCount() > 0) {
+//                array = group.field("_id,linkOgid").select();
+//            }
+//        }
+//        if (array!=null && array.size() > 0) {
+//            
+//        }
+//    }
+
     /**
      * 获取当前文章所在栏目位置
      * 
@@ -606,7 +626,7 @@ public class ContentGroup {
         String tempID = ogid;
         if (ogid != null && !ogid.equals("")) {
             while (temp != null) {
-//                temp = null;
+                // temp = null;
                 if (StringHelper.InvaildString(tempID) && !tempID.equals("0")) {
                     if (ObjectId.isValid(tempID) || checkHelper.isInt(tempID)) {
                         temp = group.eq("_id", tempID).field("_id,wbid,name,fatherid").find();
