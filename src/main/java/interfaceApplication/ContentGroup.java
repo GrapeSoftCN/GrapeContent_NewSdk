@@ -28,6 +28,7 @@ public class ContentGroup {
     private session se;
     private JSONObject userInfo = null;
     private String currentWeb = null;
+    private String pkString = null;
 
     public ContentGroup() {
         model = new CommonModel();
@@ -37,6 +38,7 @@ public class ContentGroup {
         gDbSpecField.importDescription(appsProxy.tableConfig("ContentGroup"));
         group.descriptionModel(gDbSpecField);
         group.bind();
+        pkString = group.getPk();
 
         se = new session();
         userInfo = se.getDatas();
@@ -244,11 +246,11 @@ public class ContentGroup {
     public String getOgid(String name) {
         JSONObject obj;
         String ogid = "", temp;
-        JSONArray array = group.like("name", name).field("_id,name").select();
+        JSONArray array = group.like("name", name).field(pkString + ",name").select();
         if (array != null && array.size() > 0) {
             for (Object object2 : array) {
                 obj = (JSONObject) object2;
-                temp = JSONObject.toJSON(obj.getString("_id")).getString("$oid");
+                temp = obj.getMongoID(pkString);
                 ogid += temp + ",";
             }
         }
@@ -262,7 +264,7 @@ public class ContentGroup {
      * @return
      */
     public JSONObject find(String ogid) {
-        JSONObject object = group.eq("_id", ogid).find();
+        JSONObject object = group.eq(pkString, ogid).find();
         return object != null ? object : null;
     }
 
@@ -327,7 +329,7 @@ public class ContentGroup {
             }
             switch (contant) {
             case "0":
-                code = group.eq("_id", ogid).data(groupinfo).update() != null ? 0 : 99;
+                code = group.eq(pkString, ogid).data(groupinfo).update() != null ? 0 : 99;
                 break;
             case "1": // 修改栏目信息，影响下级网站同名栏目
                 JSONObject object = find(ogid);
@@ -335,15 +337,13 @@ public class ContentGroup {
                     wbid = object.getString("wbid");
                     name = object.getString("name");
                 }
-                if (!wbid.equals("")) {
+                if (StringHelper.InvaildString(wbid)) {
                     code = updateCid(model.getRWbid(wbid), name, groupinfo);
                 }
                 break;
             }
             result = code == 0 ? rMsg.netMSG(0, "修改成功") : result;
         }
-        // model.AddLog(2, ogid, "GroupEdit", code == 0 ? "更新成功" : "更新失败"); //
-        // 更新栏目（类型，栏目id，调用接口，更新结果）
         return result;
     }
 
@@ -412,7 +412,7 @@ public class ContentGroup {
             for (Object obj : array) {
                 objtemp = (JSONObject) obj;
                 wbid = objtemp.getString("wbid");
-                objtemp.remove("_id");
+                objtemp.remove(pkString);
                 objtemp.put("name", objects.getString("name"));
                 objtemp.put("contentType", objects.getString("contentType"));
                 objtemp.put("tempList", objects.getString("tempContent"));
@@ -435,32 +435,13 @@ public class ContentGroup {
      * @return
      */
     public String GroupDelete(String ogid) {
-        // String columnName = "";
         String result = rMsg.netMSG(100, "删除失败");
-        String[] value = null;
-        // 删除该栏目下所有文章
-        new Content().deleteByOgid(ogid);
+        new Content().deleteByOgid(ogid); // 删除该栏目下所有文章
 
-        if (StringHelper.InvaildString(ogid)) {
-            value = ogid.split(",");
-            //
-            // // 获取栏目名称，添加日志
-            // JSONObject object = JSONObject.toJSON(getColumnName(ogid));
-            // if (object != null && object.size() > 0) {
-            // columnName += object.getString(ogid) + ",";
-            // }
-        }
-        if (value != null) {
-            group.or();
-            for (String id : value) {
-                if (StringHelper.InvaildString(id)) {
-                    group.eq("_id", id);
-                }
-            }
-            long code = group.deleteAll();
+        JSONArray condArray = model.getOrCond(pkString, ogid);
+        if (condArray != null && condArray.size() > 0) {
+            long code = group.or().where(condArray).deleteAll();
             result = code > 0 ? rMsg.netMSG(0, "删除成功") : result;
-            // model.AddLog(1, StringHelper.fixString(columnName, ','),
-            // "GroupDelete", code > 0 ? "删除成功" : "删除失败");
         }
         return result;
     }
@@ -526,7 +507,6 @@ public class ContentGroup {
      * @return
      */
     public String GroupPage(String wbid, int idx, int pageSize) {
-        // model.AddLog(3, "", "GroupPage", null);
         return page(wbid, idx, pageSize, null);
     }
 
@@ -540,20 +520,17 @@ public class ContentGroup {
      * @return
      */
     public String GroupPageBy(String wbid, int idx, int pageSize, String GroupInfo) {
-        // model.AddLog(3, "", "GroupPageBy", GroupInfo);
         return page(wbid, idx, pageSize, GroupInfo);
     }
 
     /*-------------------后台------*/
     // 分页
     public String GroupPageBack(int idx, int pageSize) {
-        // model.AddLog(3, "", "GroupPageBack", null);
         return page(currentWeb, idx, pageSize, null);
     }
 
     // 条件分页
     public String GroupPageByBack(int idx, int pageSize, String GroupInfo) {
-        // model.AddLog(3, "", "GroupPageByBack", null);
         return page(currentWeb, idx, pageSize, GroupInfo);
     }
 
@@ -581,35 +558,47 @@ public class ContentGroup {
         }
         group.eq("wbid", wbid);
         total = group.dirty().count();
-        array = group.desc("sort").asc("_id").page(idx, pageSize);
+        array = group.desc("sort").asc(pkString).page(idx, pageSize);
         return rMsg.netPAGE(idx, pageSize, total, join(array));
     }
 
-//    // 获取链接栏目id
-//    private String getLinkOgid(String ogids) {
-//        String[] value = null;
-//        JSONArray array = null;
-//        if (!StringHelper.InvaildString(ogids)) {
-//            return rMsg.netMSG(1, "无效栏目id");
-//        }
-//        value = ogids.split(",");
-//        if (value!=null) {
-//            group.or();
-//            for (String ogid : value) {
-//                if (StringHelper.InvaildString(ogid)) {
-//                    if (ObjectId.isValid(ogid) || checkHelper.isInt(ogid)) {
-//                        group.eq("_id", ogid);
-//                    }
-//                }
-//            }
-//            if (group.getCondCount() > 0) {
-//                array = group.field("_id,linkOgid").select();
-//            }
-//        }
-//        if (array!=null && array.size() > 0) {
-//            
-//        }
-//    }
+    /**
+     * 获取链接栏目id,当前栏目存在链接栏目id，则取链接栏目id，否则去栏目id
+     * 
+     * @param ogids  
+     * @return
+     */
+    public String getLinkOgid(String ogids) {
+        JSONObject obj;
+        String linkId = "0", temp, rsOgid = "";
+        JSONArray array = null;
+        if (!StringHelper.InvaildString(ogids)) {
+            return rMsg.netMSG(1, "无效栏目id");
+        }
+        JSONArray condArray = model.getOrCond(pkString, ogids);
+        if (condArray != null && condArray.size() > 0) {
+            array = group.or().where(condArray).field(pkString + ",linkOgid").select();
+        }
+        if (array != null && array.size() > 0) {
+            for (Object object : array) {
+                obj = (JSONObject) object;
+                temp = obj.getString(pkString);
+                if (obj.containsKey("linkOgid")) {
+                    linkId = obj.getString("linkOgid");
+                }
+                if (!StringHelper.InvaildString(linkId) || linkId.equals("0")) {
+                    if (!rsOgid.contains(temp)) {
+                        rsOgid += temp + ",";
+                    }
+                } else {
+                    if (!rsOgid.contains(linkId)) {
+                        rsOgid += linkId + ",";
+                    }
+                }
+            }
+        }
+        return StringHelper.fixString(rsOgid, ',');
+    }
 
     /**
      * 获取当前文章所在栏目位置
@@ -624,12 +613,12 @@ public class ContentGroup {
         JSONArray rList = new JSONArray();
         JSONObject temp = new JSONObject();
         String tempID = ogid;
-        if (ogid != null && !ogid.equals("")) {
+        if (StringHelper.InvaildString(ogid)) {
             while (temp != null) {
-                // temp = null;
+                temp = null;
                 if (StringHelper.InvaildString(tempID) && !tempID.equals("0")) {
                     if (ObjectId.isValid(tempID) || checkHelper.isInt(tempID)) {
-                        temp = group.eq("_id", tempID).field("_id,wbid,name,fatherid").find();
+                        temp = group.eq(pkString, tempID).field(pkString + ",wbid,name,fatherid").find();
                         if (temp != null && temp.size() > 0) {
                             list.add(temp);
                             if (temp.containsKey("fatherid")) {
@@ -641,11 +630,7 @@ public class ContentGroup {
                                 temp = null;
                             }
                         }
-                    } else {
-                        temp = null;
                     }
-                } else {
-                    temp = null;
                 }
             }
         }
@@ -658,26 +643,23 @@ public class ContentGroup {
     }
 
     /**
-     * 根据栏目id获取栏目信息，支持批量操作
-     * 
+     * 根据栏目id获取栏目模版信息及公开属性
+     *  0：长期公开；1：定期公开；2：及时公开
      * @param ogid
      * @return
      */
     public String getGroupById(String ogid) {
         JSONArray array = null;
-        String[] value = ogid.split(",");
-        group.or();
         try {
-            for (String string : value) {
-                group.eq("_id", string);
+            JSONArray condArray = model.getOrCond(pkString, ogid);
+            if (condArray != null && condArray.size() > 0) {
+                array = group.or().where(condArray).field(pkString + ",tempContent,tempList,ColumnProperty").select();
             }
-            array = group.field("_id,tempContent,tempList").select();
         } catch (Exception e) {
             nlogger.logout(e);
             array = null;
         }
-        array = join(array);
-        return (array != null && array.size() != 0) ? array.toJSONString() : null;
+        return (array != null && array.size() != 0) ? join(array).toJSONString() : null;
     }
 
     /**
@@ -704,7 +686,7 @@ public class ContentGroup {
     }
 
     /**
-     * 获取栏目
+     * 获取栏目 需带有请求头GrapeSID
      * 
      * @project GrapeContent
      * @package interfaceApplication
@@ -742,28 +724,20 @@ public class ContentGroup {
      */
     @SuppressWarnings("unchecked")
     public String getColumnName(String ogid) {
-        String[] value = null;
         JSONArray array = null;
         JSONObject object = new JSONObject(), obj;
         String oid = "", name = "";
-        if (StringHelper.InvaildString(ogid)) {
-            value = ogid.split(",");
+        if (!StringHelper.InvaildString(ogid)) {
+            return rMsg.netMSG(1, "无效栏目id");
         }
-        if (value != null) {
-            group.or();
-            for (String id : value) {
-                if (StringHelper.InvaildString(id) && !id.equals("0")) {
-                    if (ObjectId.isValid(id) || checkHelper.isInt(id)) {
-                        group.eq("_id", id);
-                    }
-                }
-            }
-            array = group.field("_id,name").select();
+        JSONArray condArray = model.getOrCond(pkString, ogid);
+        if (condArray != null && condArray.size() > 0) {
+            array = group.or().where(condArray).field(pkString + ",name").select();
         }
         if (array != null && array.size() > 0) {
             for (Object object2 : array) {
                 obj = (JSONObject) object2;
-                oid = obj.getMongoID("_id");
+                oid = obj.getMongoID(pkString);
                 name = obj.getString("name");
                 object.put(oid, name);
             }
@@ -891,68 +865,25 @@ public class ContentGroup {
      */
     @SuppressWarnings("unchecked")
     public String getClickCount(String ogid) {
+        JSONArray array = null;
         JSONObject object, rObject = new JSONObject();
         String id, clickCount;
-        String[] value = null;
-        if (StringHelper.InvaildString(ogid)) {
-            value = ogid.split(",");
+        if (!StringHelper.InvaildString(ogid)) {
+            return rMsg.netMSG(1, "无效栏目id");
         }
-        group.or();
-        if (value != null) {
-            for (String tempid : value) {
-                if (!tempid.equals("")) {
-                    group.eq("_id", tempid);
-                }
-            }
-            JSONArray array = group.field("_id,clickcount").select();
-            if (array != null && array.size() != 0) {
-                for (Object object2 : array) {
-                    object = (JSONObject) object2;
-                    id = object.getString("_id");
-                    clickCount = object.getString("clickcount");
-                    rObject.put(id, Long.parseLong(clickCount));
-                }
+        JSONArray condArray = model.getOrCond(pkString, ogid);
+        if (condArray != null && condArray.size() > 0) {
+            array = group.or().where(condArray).select();
+        }
+        if (array != null && array.size() != 0) {
+            for (Object object2 : array) {
+                object = (JSONObject) object2;
+                id = object.getString("_id");
+                clickCount = object.getString("clickcount");
+                rObject.put(id, Long.parseLong(clickCount));
             }
         }
         return rObject.toJSONString();
-    }
-
-    /**
-     * 获取关联栏目id
-     * 
-     * @project GrapeContent
-     * @package interfaceApplication
-     * @file ContentGroup.java
-     * 
-     * @param ogid
-     *            当前栏目id
-     * @return 当前栏目id和关联栏目id，格式为ogid,ogid,ogid
-     *
-     */
-    public String getConnColumns(String ogid) {
-        String column = "", columnId = "", id;
-        JSONArray array = null;
-        if (ogid != null && !ogid.equals("")) {
-            JSONObject object = find(ogid);
-            if (object != null && object.size() != 0) {
-                if (object.containsKey("connColumn")) {
-                    column = object.getString("connColumn");
-                    if (!column.equals("0")) {
-                        array = JSONArray.toJSONArray(column);
-                        for (Object obj : array) {
-                            object = (JSONObject) obj;
-                            id = (object != null && object.size() != 0) ? object.getString("id") : "";
-                            columnId += (!id.equals("") ? id : "") + ",";
-                        }
-                    }
-                }
-            }
-            if (!columnId.equals("")) {
-                columnId = StringHelper.fixString(columnId, ',');
-                ogid = ogid + "," + columnId;
-            }
-        }
-        return ogid;
     }
 
     /**
@@ -965,15 +896,13 @@ public class ContentGroup {
     public String getColumnInfo(String wbid, String name) {
         JSONArray array = null;
         String[] value = null;
-        if (wbid != null && !wbid.equals("")) {
-            value = wbid.split(",");
-            group.or();
-            for (String string : value) {
-                group.eq("wbid", string);
-            }
-            group.and();
-            group.eq("name", name);
-            array = group.select();
+        if (!StringHelper.InvaildString(wbid)) {
+            return rMsg.netMSG(1, "无效站点id");
+        }
+
+        JSONArray condArray = model.getOrCondArray("wbid", wbid);
+        if (condArray != null && condArray.size() > 0) {
+            array = group.or().where(condArray).and().eq("name", name).select();
         }
         JSONObject rsObject = JoinObj(value, array);
         return (rsObject != null && rsObject.size() != 0) ? rsObject.toString() : null;
@@ -988,8 +917,7 @@ public class ContentGroup {
             int l = array.size();
             for (int i = 0; i < l; i++) {
                 object = (JSONObject) array.get(i);
-                // id = ((JSONObject) object.get("_id")).getString("$oid");
-                id = object.getString("_id");
+                id = object.getString(pkString);
                 wbid = object.getString("wbid");
                 for (String string : value) {
                     if (wbid.equals(string)) {
@@ -1009,7 +937,7 @@ public class ContentGroup {
      */
     public String isPublic(String ogid) {
         String slevel = "0", temp;
-        JSONObject object = group.eq("_id", ogid).find();
+        JSONObject object = group.eq(pkString, ogid).find();
         if (object != null && object.size() != 0) {
             temp = object.getString("slevel");
             slevel = temp;
@@ -1035,7 +963,7 @@ public class ContentGroup {
         String rsString = ogid;
         for (Object obj : data) {
             object = (JSONObject) obj;
-            tmpWbid = ((JSONObject) object.get("_id")).get("$oid").toString();
+            tmpWbid = object.getString(pkString);
             rsString = rsString + "," + getAllColumn(tmpWbid);
         }
         return StringHelper.fixString(rsString, ',');
@@ -1051,17 +979,11 @@ public class ContentGroup {
     public String SetPushState(String ogid, String data) {
         long code = 0;
         String result = rMsg.netMSG(100, "设置失败");
-        String[] value = null;
-        if (JSONObject.toJSON(data) != null) {
-            if (ogid != null && !ogid.equals("")) {
-                value = ogid.split(",");
-            }
-            if (value != null) {
-                group.or();
-                for (String string : value) {
-                    group.eq("_id", string);
-                }
-                code = group.data(data).updateAll();
+        JSONObject object = JSONObject.toJSON(data);
+        if (object != null && object.size() > 0) {
+            JSONArray condArray = model.getOrCond(pkString, ogid);
+            if (condArray != null && condArray.size() > 0) {
+                code = group.or().where(condArray).data(object).updateAll();
                 result = code == 0 ? rMsg.netMSG(0, "设置成功") : result;
             }
         }
@@ -1104,13 +1026,13 @@ public class ContentGroup {
     public String getColumnByWbid(String wbid) {
         JSONArray array = null;
         if (StringHelper.InvaildString(wbid)) {
-            array = group.eq("wbid", wbid).field("_id,wbid,name,fatherid").select();
+            array = group.eq("wbid", wbid).field(pkString + ",wbid,name,fatherid").select();
         }
         return (array != null && array.size() > 0) ? array.toJSONString() : new JSONArray().toJSONString();
     }
 
     /**
-     * 获取指定网站下的所有栏目id
+     * 根据网站id，栏目名称查询栏目id
      * 
      * @param wbid
      * @return
@@ -1118,9 +1040,9 @@ public class ContentGroup {
     public String getOgidByName(String wbid, String columnName) {
         String ogid = "";
         if (StringHelper.InvaildString(wbid) && StringHelper.InvaildString(columnName)) {
-            JSONObject object = group.eq("name", columnName).eq("wbid", wbid).field("_id").find();
+            JSONObject object = group.eq("name", columnName).eq("wbid", wbid).field(pkString).find();
             if (object != null && object.size() > 0) {
-                ogid = object.getMongoID("_id");
+                ogid = object.getString(pkString);
             }
         }
         return ogid;
