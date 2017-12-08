@@ -291,13 +291,14 @@ public class ContentGroup {
      */
     private JSONObject checkColumn(JSONObject object) {
         JSONObject obj = null;
-        String wbid = "", type = "", Fatherid = "";
+        String wbid = "", type = "", Fatherid = "",name = "";
         if (object != null && object.size() > 0) {
             if (object.containsKey("wbid") && object.containsKey("type") && object.containsKey("fatherid")) {
                 wbid = object.get("wbid").toString();
                 type = object.get("type").toString();
+                name = object.getString("name");
                 Fatherid = object.get("fatherid").toString();
-                obj = group.eq("wbid", wbid).eq("type", type).eq("fatherid", Fatherid).find();
+                obj = group.eq("name", name).eq("wbid", wbid).eq("type", type).eq("fatherid", Fatherid).find();
             }
         }
         return obj;

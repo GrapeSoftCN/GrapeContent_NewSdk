@@ -907,7 +907,7 @@ public class Content {
         }
         if (content.getCondCount() > 0) {
             total = content.dirty().count();
-            array = content.and().eq("wbid", wbid).eq("isdelete", 0).eq("isvisble", 0).desc("time").field("_id,mainName,time,wbid,ogid,image,readCount,souce").page(idx, pageSize);
+            array = content.and().eq("wbid", wbid).eq("isdelete", 0).eq("isvisble", 0).desc("time").field("_id,mainName,time,wbid,ogid,image,readCount,souce").desc("time").desc("sort").desc("_id").page(idx, pageSize);
             array = model.setTemplate(array); // 设置模版
             out = rMsg.netPAGE(idx, pageSize, total, model.getImgs(array));
         } else {
