@@ -664,6 +664,22 @@ public class ContentGroup {
     }
 
     /**
+     * 根据栏目id获取栏目模版信息及公开属性
+     *  0：长期公开；1：定期公开；2：及时公开
+     * @param ogid
+     * @return
+     */
+    public String getColumnPropertyById(String ogid) {
+        String ColumnProperty = "0";
+        if (StringHelper.InvaildString(ogid)) {
+            JSONObject object = group.eq(pkString, ogid).field("ColumnProperty").find();
+            if (object!=null && object.size() > 0) {
+                ColumnProperty = object.getString("ColumnProperty");
+            }
+        }
+        return ColumnProperty;
+    }
+    /**
      * 获取栏目
      * 
      * @project GrapeContent

@@ -75,6 +75,7 @@ public class CommonModel {
         return filter.build();
     }
 
+    @SuppressWarnings("unchecked")
     public JSONArray setTemplate(JSONArray array) {
         long properties = 0L;
         String list = "";
@@ -423,6 +424,7 @@ public class CommonModel {
         return StringHelper.fixString(image, ',');
     }
 
+    @SuppressWarnings("unchecked")
     public JSONArray getImgs(JSONArray array) {
         if ((array == null) || (array.size() <= 0)) {
             return new JSONArray();
@@ -519,9 +521,7 @@ public class CommonModel {
         String[] imgUrl = imageUrl.split(",");
         List list = new ArrayList();
         for (String string : imgUrl) {
-            if (string.contains("http:")) {
-                string = getImageUri(string);
-            } else {
+            if (!string.contains("http://")) {
                 string = getconfig("fileHost") + string;
             }
             list.add(string);
@@ -529,6 +529,7 @@ public class CommonModel {
         return StringHelper.join(list);
     }
 
+    @SuppressWarnings("unchecked")
     private JSONObject getContentImgs(JSONObject objcontent) {
         int code = 2;
         for (Iterator localIterator = objcontent.keySet().iterator(); localIterator.hasNext();) {
@@ -538,9 +539,10 @@ public class CommonModel {
             if (!value.equals("")) {
                 Matcher matcher = this.ATTR_PATTERN.matcher(value.toLowerCase());
                 if (value.contains("/File/upload")) {
-                    code = value.contains("/File/upload") ? 1 : matcher.find() ? 0 : 2;
+                    code = matcher.find() ? 0 : (value.contains("/File/upload") ? 1 : 2);
+//                    code = value.contains("/File/upload") ? 1 : matcher.find() ? 0 : 2;
                 } else if (value.contains("/") || value.contains("\\")) {
-                    code = 3;
+                    code = matcher.find() ? 0 : ((value.startsWith("/") || value.startsWith("\\")) ? 3 : 2);
                 }
 
                 switch (code) {
@@ -553,6 +555,7 @@ public class CommonModel {
                 case 2:
                     break;
                 case 3:
+                    // value = AddHtmlPrefix(value);
                     value = getconfig("fileHost") + value;
                     break;
                 }

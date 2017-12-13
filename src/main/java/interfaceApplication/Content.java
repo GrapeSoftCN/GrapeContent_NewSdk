@@ -213,7 +213,7 @@ public class Content {
     }
 
     /**
-     * 将爬虫爬取的数据添加值数据库
+     * 将爬虫爬取的数据添加至数据库
      * 
      * @return
      */
@@ -221,11 +221,11 @@ public class Content {
         String contentInfo = "";
         JSONObject object = JSONObject.toJSON(execRequest.getChannelValue(grapeHttpUnit.formdata).toString());
         contentInfo = object.getString("param");
-        return AddCrawlerContent(contentInfo);
+        return AddCrawlerContent(infp,contentInfo);
     }
 
     /**
-     * 将爬虫爬取的数据添加值数据库
+     * 将爬虫爬取的数据添加至数据库
      * 
      * @return
      */
@@ -234,6 +234,7 @@ public class Content {
         int state = 2;
         Object info = null;
         String result = rMsg.netMSG(100, "添加失败");
+        contentInfo = codec.DecodeFastJSON(contentInfo);
         JSONObject object = JSONObject.toJSON(contentInfo);
         if (object != null && object.size() > 0) {
             if (object.containsKey("ogid")) { // 文章状态
@@ -642,13 +643,17 @@ public class Content {
      * @param oid
      * @return
      */
+    @SuppressWarnings("unchecked")
     public String DeleteArticle(String oid) {
         int code = -1;
         String result = rMsg.netMSG(100, "删除失败");
         JSONArray condArray = model.getOrCond(pkString, oid);
         if (condArray != null && condArray.size() > 0) {
-            code = content.or().where(condArray).deleteAll() > 0 ? 0 : 99;
-            result = (code == 0) ? rMsg.netMSG(0, "删除成功") : result;
+            JSONObject object = new JSONObject();
+            object.put("isdelete", 1);
+            code = content.or().where(condArray).data(object).updateAll() > 0 ? 0 : 99;
+            // code = content.or().where(condArray).deleteAll() > 0 ? 0 : 99;
+             result = (code == 0) ? rMsg.netMSG(0, "删除成功") : result;
         }
         return result;
     }
@@ -665,9 +670,10 @@ public class Content {
         long total = 0;
         JSONArray array = null;
         content.eq("wbid", model.getRWbid(wbid)).eq("state", 2).eq("isdelete", 0).eq("isvisble", 0).desc("time").desc(pkString);
-        array = content.dirty().page(idx, pageSize);
+        array = content.dirty().mask("content").page(idx, pageSize);
         total = content.count();
         array = model.ContentDencode(array);
+        array = model.setTemplate(array);
         return rMsg.netPAGE(idx, pageSize, total, (array != null && array.size() > 0) ? model.join(array) : new JSONArray());
     }
 
@@ -780,7 +786,7 @@ public class Content {
             }
         }
         if (content.getCondCount() > 0) {
-            content.eq("wbid", wbid).eq("slevel", 0).eq("isdelete", 0).eq("isvisble", 0).desc("time").field("_id,mainName,image,time,content");
+            content.and().eq("wbid", wbid).eq("slevel", 0).eq("isdelete", 0).eq("isvisble", 0).desc("time").field("_id,mainName,image,time,content");
             array = content.dirty().page(idx, pageSize);
             total = content.count();
             content.clear();
@@ -907,9 +913,9 @@ public class Content {
         }
         if (content.getCondCount() > 0) {
             total = content.dirty().count();
-            array = content.and().eq("wbid", wbid).eq("isdelete", 0).eq("isvisble", 0).desc("time").field("_id,mainName,time,wbid,ogid,image,readCount,souce").desc("time").desc("sort").desc("_id").page(idx, pageSize);
+            array = content.and().eq("wbid", wbid).eq("isdelete", 0).eq("isvisble", 0).desc("time").field("_id,mainName,time,wbid,ogid,image,clickcount,souce").desc("time").desc("sort").desc("_id").page(idx, pageSize);
             array = model.setTemplate(array); // 设置模版
-            out = rMsg.netPAGE(idx, pageSize, total, model.getImgs(array));
+            out = rMsg.netPAGE(idx, pageSize, total, model.getImgs(model.getDefaultImage(array)));
         } else {
             out = rMsg.netMSG(false, "无效条件");
         }
@@ -1291,7 +1297,8 @@ public class Content {
         distributedLocker countLocker = distributedLocker.newLocker("totalArticle_" + rootID);
         String rString = "";
         if (countLocker != null) {
-            if (countLocker.lock()) {// 如果锁定成功
+            boolean flag = countLocker.lock();
+            if (flag) {// 如果锁定成功
                 CacheHelper ch = new CacheHelper();
                 rString = ch.get("total_COunt_" + rootID);
                 if (rString == null || rString.equals("")) {
@@ -1505,7 +1512,18 @@ public class Content {
         }
         return rMsg.netState(Review(oid, 1));
     }
-
+    /**
+     * 文章审核取消，由审核通过改为待审核状态，审核不通过改为待审核状态
+     * 
+     * @param oid
+     * @return
+     */
+    public String ReviewCancle(String oid) {
+        if (!StringHelper.InvaildString(oid)) {
+            return rMsg.netMSG(false, "非法数据");
+        }
+        return rMsg.netState(Review(oid, 0));
+    }
     /**
      * 文章审核操作
      * 
@@ -1869,7 +1887,7 @@ public class Content {
     @SuppressWarnings("unchecked")
     private String getSingleArticle(JSONObject obj, String id) {
         String wbid;
-        String ogid;
+        String ogid = "";
         JSONObject preobj;
         JSONObject nextobj;
         // 从当前数据获取wbid,ogid
@@ -1898,6 +1916,7 @@ public class Content {
         obj = model.ContentDencode(obj);
         obj = model.getImgs(getDefault(obj));
         obj = FillFileToObj(obj);
+        obj.put("ColumnProperty", new ContentGroup().getColumnPropertyById(ogid));
         return rMsg.netMSG(true, obj);
     }
 
