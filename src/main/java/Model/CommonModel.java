@@ -6,11 +6,10 @@ import check.checkHelper;
 import database.dbFilter;
 import httpClient.request;
 import interfaceApplication.ContentGroup;
-import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
+import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import json.JSONHelper;
@@ -18,8 +17,6 @@ import nlogger.nlogger;
 import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
-
-import com.esotericsoftware.kryo.util.IdentityMap.Values;
 
 import security.codec;
 import session.session;
@@ -78,8 +75,7 @@ public class CommonModel {
     @SuppressWarnings("unchecked")
     public JSONArray setTemplate(JSONArray array) {
         long properties = 0L;
-        String list = "";
-        String content = "";
+        String list = "", content = "", columnName = "";
         array = ContentDencode(array);
         if ((array == null) || (array.size() <= 0)) {
             return array;
@@ -96,28 +92,31 @@ public class CommonModel {
                         content = values[0];
                         list = values[1];
                         properties = Long.parseLong(values[2]);
+                        columnName = values[3];
                     }
                 }
                 object.put("TemplateContent", content);
                 object.put("Templatelist", list);
                 object.put("ColumnProperty", Long.valueOf(properties));
+                object.put("ColumnName", columnName);
                 array.set(i, object);
             }
         }
         return array;
     }
 
+    @SuppressWarnings("unchecked")
     private JSONObject getTemplate(JSONArray array) {
         String id = "";
+        JSONObject tempobj;
         long properties = 0L;
         String TemplateContent = "";
-        String Templatelist = "";
+        String Templatelist = "", columnName = "";
         JSONObject tempObj = new JSONObject();
         if ((array != null) && (array.size() >= 0)) {
-            for (Iterator localIterator = array.iterator(); localIterator.hasNext();) {
-                Object obj = localIterator.next();
-                JSONObject object = (JSONObject) obj;
-                String temp = object.getString("ogid");
+            for (Object obj : array) {
+                tempobj = (JSONObject) obj;
+                String temp = tempobj.getString("ogid");
                 if (!id.contains(temp)) {
                     id = id + temp + ",";
                 }
@@ -142,8 +141,11 @@ public class CommonModel {
                     if (object.containsKey("ColumnProperty")) {
                         properties = object.getLong("ColumnProperty");
                     }
+                    if (object.containsKey("name")) {
+                        columnName = object.getString("name");
+                    }
                     String tid = object.getString("_id");
-                    tempObj.put(tid, TemplateContent + "," + Templatelist + "," + properties);
+                    tempObj.put(tid, TemplateContent + "," + Templatelist + "," + properties + "," + columnName);
                 }
             }
         }
@@ -248,9 +250,11 @@ public class CommonModel {
         return obj;
     }
 
+    @SuppressWarnings("unchecked")
     private JSONObject buildObj(JSONObject object, JSONArray CondOgid, JSONArray condArray) {
         JSONObject obj = new JSONObject();
-
+        
+        String ogid = "";
         String[] values = null;
         dbFilter filter = new dbFilter();
         dbFilter filter1 = new dbFilter();
@@ -259,7 +263,8 @@ public class CommonModel {
                 Object object2 = localIterator.next();
                 String key = object2.toString();
                 if (key.equals("ogid")) {
-                    Object value = getROgid(object.getString(key));
+                    ogid = object.getString(key);
+                    Object value = getROgid(ogid);
                     String temp = (String) value;
                     if (temp.contains("errorcode")) {
                         return null;
@@ -269,8 +274,11 @@ public class CommonModel {
                         for (String id : values) {
                             if ((!StringHelper.InvaildString(id)) || ((!ObjectId.isValid(id)) && (!checkHelper.isInt(id))))
                                 continue;
-                            filter1.eq(key, id);
+                            filter1.eq(key, id);  //获取关联栏目
                         }
+                        //获取栏目同步模式
+                        //long MixMode = new ContentGroup().getMixMode(ogid);
+                        
                     }
                 } else {
                     Object value = object.get(key);
@@ -285,6 +293,7 @@ public class CommonModel {
         return obj;
     }
 
+    @SuppressWarnings("unchecked")
     private JSONObject buildArray(JSONArray array, JSONArray CondOgid, JSONArray condArray) {
         JSONObject obj = new JSONObject();
 
@@ -540,7 +549,8 @@ public class CommonModel {
                 Matcher matcher = this.ATTR_PATTERN.matcher(value.toLowerCase());
                 if (value.contains("/File/upload")) {
                     code = matcher.find() ? 0 : (value.contains("/File/upload") ? 1 : 2);
-//                    code = value.contains("/File/upload") ? 1 : matcher.find() ? 0 : 2;
+                    // code = value.contains("/File/upload") ? 1 :
+                    // matcher.find() ? 0 : 2;
                 } else if (value.contains("/") || value.contains("\\")) {
                     code = matcher.find() ? 0 : ((value.startsWith("/") || value.startsWith("\\")) ? 3 : 2);
                 }
@@ -647,61 +657,199 @@ public class CommonModel {
         return temp;
     }
 
-    public JSONObject getDefaultImage(JSONObject object) {
-        CacheHelper ch = new CacheHelper();
-        String thumbnail = "";
-        if ((object != null) && (object.size() != 0)) {
-            String wbid = object.getString("wbid");
-
-            String temp = ch.get("DefaultImage_" + wbid);
-            if (temp == null) {
-                temp = (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + wbid);
-                ch.setget("DefaultImage_" + wbid, temp, 86400L);
+    @SuppressWarnings("unchecked")
+    public JSONArray getDefault(String wbid, JSONArray array) {
+        JSONObject tempObj;
+        String ogids = "", temp;
+        JSONObject WebImage = getWebThumbnail(wbid); // 获取网站缩略图
+        if (array != null && array.size() > 0) {
+            for (Object object : array) {
+                tempObj = (JSONObject) object;
+                temp = tempObj.getString("ogid");
+                if (!ogids.contains(temp)) {
+                    ogids += temp + ",";
+                }
             }
-            JSONObject Obj = JSONObject.toJSON(temp);
-            if ((Obj != null) && (Obj.size() != 0)) {
-                thumbnail = Obj.getString("thumbnail");
-            }
-            object.put("thumbnail", thumbnail);
         }
-        return object;
-    }
-
-    public JSONArray getDefaultImage(JSONArray array) {
-        CacheHelper ch = new CacheHelper();
-        String thumbnail = "";
-        String wbid = "";
-        JSONObject Obj = new JSONObject();
-        if ((array != null) && (array.size() > 0)) {
+        JSONObject ColumnImage = new ContentGroup().getDefaultById(StringHelper.fixString(ogids, ',')); // 获取栏目缩略图信息
+        if (array != null && array.size() > 0) {
             int l = array.size();
-            for (Iterator localIterator = array.iterator(); localIterator.hasNext();) {
-                Object obj = localIterator.next();
-                JSONObject tempObj = (JSONObject) obj;
-                String temp = tempObj.getString("wbid");
-                if (!wbid.contains(temp)) {
-                    wbid = wbid + temp + ",";
-                }
-            }
-            if (StringHelper.InvaildString(wbid)) {
-                wbid = StringHelper.fixString(wbid, ',');
-                String temp = ch.get("DefaultImage_" + wbid);
-                if (temp == null) {
-                    temp = (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + getRWbid(wbid));
-                    ch.setget("DefaultImage_" + wbid, temp, 86400L);
-                }
-                Obj = JSONObject.toJSON(temp);
-            }
-            if ((Obj != null) && (Obj.size() > 0)) {
-                for (int i = 0; i < l; i++) {
-                    JSONObject object = (JSONObject) array.get(i);
-                    wbid = object.getString("wbid");
-                    thumbnail = Obj.getString(wbid);
-                    thumbnail = JSONObject.toJSON(thumbnail).getString("thumbnail");
-                    object.put("thumbnail", thumbnail);
-                    array.set(i, object);
-                }
+            for (int i = 0; i < l; i++) {
+                tempObj = (JSONObject) array.get(i);
+                tempObj = FillDefaultImage(tempObj, ColumnImage, WebImage);
+                array.set(i, tempObj);
             }
         }
         return array;
+    }
+
+    /**
+     * 填充缩略图及文章小尾巴标识
+     * 
+     * @param object
+     * @return
+     */
+    public JSONObject getDefault(JSONObject object) {
+        String ogids = "", wbid = "";
+        JSONObject WebImage = null, ColumnImage = null;
+        if (object != null && object.size() > 0) {
+            ogids = object.getString("ogid");
+            wbid = object.getString("wbid");
+        }
+        if (StringHelper.InvaildString(ogids) && !ogids.equals("0")) {
+            ColumnImage = new ContentGroup().getDefaultById(ogids); // 获取栏目缩略图信息
+        }
+        if (StringHelper.InvaildString(wbid) && !wbid.equals("0")) {
+            WebImage = getWebThumbnail(wbid); // 获取网站缩略图
+        }
+        return FillDefaultImage(object, ColumnImage, WebImage);
+    }
+
+    /**
+     * 填充缩略图，通过栏目填充缩略图，若栏目未设置缩略图，则使用网站缩略图
+     * 
+     * @param contentInfo
+     *            文章信息
+     * @param ColumnImage
+     *            栏目缩略图
+     * @param WebThumbnail
+     *            网站缩略图
+     * @return
+     */
+    public JSONObject FillDefaultImage(JSONObject contentInfo, JSONObject ColumnImage, JSONObject WebThumbnail) {
+        String thumbnail = "", suffix = "";
+        // 通过栏目获取缩略图及文章小尾巴标识
+        contentInfo = FillColumnImage(contentInfo, ColumnImage);
+        if (contentInfo != null && contentInfo.size() > 0) {
+            thumbnail = contentInfo.getString("thumbnail");
+            suffix = contentInfo.getString("suffix");
+        }
+        if (!StringHelper.InvaildString(thumbnail) || !StringHelper.InvaildString(suffix)) {
+            contentInfo = FillWebImage(contentInfo, WebThumbnail);
+        }
+        return contentInfo;
+    }
+
+    /**
+     * 将栏目的默认缩略图添加至文章中
+     * 
+     * @param ContentInfo
+     * @param ColumnImage
+     * @return
+     */
+    @SuppressWarnings("unchecked")
+    private JSONObject FillColumnImage(JSONObject ContentInfo, JSONObject ColumnImage) {
+        JSONObject temp;
+        String ogid = "", thumbnail = "", suffix = "";
+        if (ContentInfo != null && ContentInfo.size() > 0) {
+            ogid = ContentInfo.getString("ogid");
+            if (StringHelper.InvaildString(ogid)) {
+                if (ColumnImage != null && ColumnImage.size() > 0) {
+                    temp = ColumnImage.getJson(ogid); // {"thumbnail":"","suffix":""}
+                    if (temp != null && temp.size() > 0) {
+                        if (temp.containsKey("thumbnail")) {
+                            thumbnail = temp.getString("thumbnail");
+                        }
+                        if (temp.containsKey("suffix")) {
+                            suffix = temp.getString("suffix");
+                        }
+                    }
+                }
+            }
+        }
+        ContentInfo.put("thumbnail", getRandomImage(thumbnail));
+        ContentInfo.put("suffix", suffix);
+        return ContentInfo;
+    }
+
+    /**
+     * 若栏目设置的缩略图为多个，则随机选择一个
+     * 
+     * @param thumbnails
+     * @return
+     */
+    private String getRandomImage(String thumbnails) {
+        String[] value = null;
+        String thumbnail = thumbnails;
+        if (StringHelper.InvaildString(thumbnails)) {
+            value = thumbnails.split(",");
+            if (value != null) {
+                int l = value.length;
+                if (l > 1) {
+                    thumbnail = value[new Random().nextInt(l)];
+                }
+            }
+        }
+        if (StringHelper.InvaildString(thumbnail)) {
+            if (!thumbnail.contains("http://")) {
+                thumbnail = getconfig("fileHost") + thumbnail;
+            }
+        }
+        return thumbnail;
+    }
+
+    /**
+     * 将网站的默认缩略图添加至文章中
+     * 
+     * @param ContentInfo
+     * @param ColumnImage
+     * @return
+     */
+    @SuppressWarnings("unchecked")
+    private JSONObject FillWebImage(JSONObject ContentInfo, JSONObject WebImage) {
+        JSONObject temp;
+        String wbid = "", thumbnail = "", suffix = "", contents = "", tempSuffix = "";
+        String webThumbnail = "", webSuffix = "";
+        int isSuffix = 0;
+        if (ContentInfo != null && ContentInfo.size() > 0) {
+            wbid = ContentInfo.getString("wbid"); // 文章所属网站id
+            contents = ContentInfo.getString("content"); // 获取文章内容
+            if (ContentInfo.containsKey("isSuffix")) {
+                tempSuffix = ContentInfo.getString("isSuffix");
+            }
+            isSuffix = (StringHelper.InvaildString(tempSuffix)) ? Integer.parseInt(tempSuffix) : 0; // 是否添加小尾巴表示
+            thumbnail = ContentInfo.getString("thumbnail"); // 缩略图
+            suffix = ContentInfo.getString("suffix"); // 小尾巴表示信息
+            if (StringHelper.InvaildString(wbid)) {
+                if (WebImage != null && WebImage.size() > 0) {
+                    temp = WebImage.getJson(wbid); // {"thumbnail":"","suffix":""}
+                    if (temp != null && temp.size() > 0) {
+                        if (temp.containsKey("thumbnail")) {
+                            webThumbnail = temp.getString("thumbnail");
+                        }
+                        if (temp.containsKey("suffix")) {
+                            suffix = temp.getString("suffix");
+                        }
+                    }
+                }
+            }
+        }
+        if (isSuffix != 0) {
+            suffix = (StringHelper.InvaildString(suffix)) ? suffix : webSuffix;
+            ContentInfo.put("content", contents + suffix);
+        }
+        if (!StringHelper.InvaildString(thumbnail)) {
+            ContentInfo.put("thumbnail", webThumbnail);
+        }
+        ContentInfo.remove("suffix");
+        return ContentInfo;
+    }
+
+    /**
+     * 获取网站缩略图，支持查询多个网站【远程调用，调用网站服务接口】
+     * 
+     * @param wbid
+     * @return {wbid:{"thumbnail":"","suffix":""},wbid:{"thumbnail":"","suffix":
+     *         ""}}
+     */
+    private JSONObject getWebThumbnail(String wbid) {
+        JSONObject Obj = null;
+        if (StringHelper.InvaildString(wbid) && !wbid.equals("0")) {
+            String temp = (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + wbid);
+            if (StringHelper.InvaildString(temp)) {
+                Obj = JSONObject.toJSON(temp);
+            }
+        }
+        return Obj;
     }
 }

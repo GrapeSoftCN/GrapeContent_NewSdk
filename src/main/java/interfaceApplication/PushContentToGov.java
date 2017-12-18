@@ -73,8 +73,6 @@ public class PushContentToGov {
         String oid = "", cCode = "", CreateUsername = "", temp;
         JSONObject tempobj = null;
         if (object != null && object.size() > 0) {
-            // oid = object.getMongoID("_id");
-            // oid = "12";
             oid = object.getString("subID");
             // 获取单位代码，登录用户名（该组织在铜陵信息 公开网系统内登录的账号），通过GrapeWebInfo
             if (StringHelper.InvaildString(currentWeb)) {
@@ -102,7 +100,6 @@ public class PushContentToGov {
                 JSONObject postParam = new JSONObject("param", codec.encodeFastJSON(temp));
                 appIns apps = appsProxy.getCurrentAppInfo();
                 temp = (String) appsProxy.proxyCall("/tlsGMWeb/wsServer/pushConent/" + cCode + "/" + cols + "/" + oid + "/" + filejson + "/b:" + true, postParam, apps);
-                System.out.println(temp);
                 code = StringHelper.InvaildString(temp) ? Integer.parseInt(temp) : 0;
             }
         }

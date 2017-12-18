@@ -15,6 +15,7 @@ import apps.appsProxy;
 import authority.plvDef.plvType;
 import cache.CacheHelper;
 import check.checkHelper;
+import database.dbFilter;
 import interfaceModel.GrapeDBSpecField;
 import interfaceModel.GrapeTreeDBModel;
 import nlogger.nlogger;
@@ -45,6 +46,37 @@ public class ContentGroup {
         if (userInfo != null && userInfo.size() != 0) {
             currentWeb = userInfo.getString("currentWeb"); // 当前用户所属网站id
         }
+    }
+
+    /**
+     * 设置同步栏目
+     * 
+     * @param currentOgid
+     * @param LinkOgid
+     * @return
+     */
+    public String SetLinkOgid(String currentOgid, String LinkOgid,int mixMode) {
+        JSONObject rs = null;
+        JSONObject obj = new JSONObject();
+        obj.put("linkOgid", LinkOgid);
+        obj.put("MixMode", mixMode);
+        rs = group.eq(pkString, currentOgid).data(obj).update();
+        return (rs != null) ? rMsg.netMSG(true, "设置关联栏目成功") : rMsg.netMSG(false, "设置关联栏目失败");
+    }
+
+    /**
+     * 设置同步栏目模式，即在查询文章时，是否显示自身栏目所包含的文章数据
+     * 
+     * @param currentOgid  当前栏目id
+     * @param flag  0：不显示自身栏目所包含文章数据
+     *              1：显示自身栏目所包含文章数据
+     * @return
+     */
+    public String SetMixMode(String currentOgid, int flag) {
+        JSONObject rs = null;
+        JSONObject obj = new JSONObject("MixMode", flag);
+        rs = group.eq(pkString, currentOgid).data(obj).update();
+        return (rs != null) ? rMsg.netMSG(true, "设置栏目同步模式成功") : rMsg.netMSG(false, "设置栏目同步模式失败");
     }
 
     /**
@@ -291,7 +323,7 @@ public class ContentGroup {
      */
     private JSONObject checkColumn(JSONObject object) {
         JSONObject obj = null;
-        String wbid = "", type = "", Fatherid = "",name = "";
+        String wbid = "", type = "", Fatherid = "", name = "";
         if (object != null && object.size() > 0) {
             if (object.containsKey("wbid") && object.containsKey("type") && object.containsKey("fatherid")) {
                 wbid = object.get("wbid").toString();
@@ -507,8 +539,83 @@ public class ContentGroup {
      * @param pageSize
      * @return
      */
+
+    // public String GroupPage(String wbid, int idx, int pageSize) {
+    //
+    // return page(wbid, idx, pageSize, null);
+    // }
+    /**
+     * 前台分页，仅仅显示含有文章的栏目
+     * 
+     * @param wbid
+     * @param idx
+     * @param pageSize
+     * @return
+     */
     public String GroupPage(String wbid, int idx, int pageSize) {
-        return page(wbid, idx, pageSize, null);
+        long total = 0;
+        JSONArray array = null;
+        if (idx <= 0) {
+            return rMsg.netMSG(false, "页码错误");
+        }
+        if (pageSize <= 0) {
+            return rMsg.netMSG(false, "页长度错误");
+        }
+        if (!StringHelper.InvaildString(wbid)) {
+            return rMsg.netPAGE(idx, pageSize, total, new JSONArray());
+        }
+        wbid = model.getRWbid(wbid);
+        group.eq("wbid", wbid);
+        total = group.dirty().count();
+        array = group.desc("sort").asc(pkString).page(idx, pageSize);
+        // array = CheckGroup(array);
+        // return rMsg.netPAGE(idx, pageSize, total, join(CheckGroup(array)));
+        return rMsg.netPAGE(idx, pageSize, total, join(array));
+    }
+
+    /**
+     * 验证该栏目下是否存在文章 含有文章，则返回栏目数据
+     * 
+     * @param array
+     * @return
+     */
+    @SuppressWarnings("unchecked")
+    private JSONArray CheckGroup(JSONArray array) {
+        String ogid;
+        String fatherid = "0";
+        JSONObject object;
+        List<String> fidList = new ArrayList<String>();
+        JSONArray rsArray = new JSONArray();
+        int cutNo = 0;// 被删除的栏目数量
+        try {
+            if (array != null && array.size() > 0) {
+                for (Object obj : array) {// 生成父ID组
+                    object = (JSONObject) obj;
+                    ogid = object.getString(pkString);
+                    if (object.containsKey("fatherid")) {
+                        fatherid = object.getString("fatherid");// 获得所属父ID
+                    }
+                    if (!fidList.contains(fatherid) && !fatherid.equals("0")) {
+                        fidList.add(fatherid);
+                    }
+                }
+                Content _cContent = new Content();
+                for (Object obj : array) {// 找到有孩子栏目或者内容不为空的栏目
+                    ogid = ((JSONObject) obj).getString(pkString);
+                    if (fidList.contains(ogid) || _cContent.getContentCount(ogid) > 0) {// 目标ID是某一内容的父ID或者目标栏目内容数量>0
+                        rsArray.add(obj);
+                    } else {
+                        cutNo++;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            cutNo = 0;
+        }
+        if (cutNo > 0) {
+            rsArray = CheckGroup(rsArray);
+        }
+        return rsArray;
     }
 
     /**
@@ -564,9 +671,25 @@ public class ContentGroup {
     }
 
     /**
+     * 获取栏目同步模式
+     * @param ogid  当前栏目id
+     * @return      0：不显示自身栏目所包含文章数据；1：显示自身栏目所包含文章数据
+     */
+    public long getMixMode(String ogid) {
+        long MixMode = 0;
+        JSONObject object = null;
+        if (StringHelper.InvaildString(ogid)) {
+            object = group.eq("_id", ogid).field("MixMode").find();
+            if (object!=null && object.size() > 0) {
+                MixMode = object.getLong("MixMode");
+            }
+        }
+        return MixMode;
+    }
+    /**
      * 获取链接栏目id,当前栏目存在链接栏目id，则取链接栏目id，否则去栏目id
      * 
-     * @param ogids  
+     * @param ogids
      * @return
      */
     public String getLinkOgid(String ogids) {
@@ -644,8 +767,8 @@ public class ContentGroup {
     }
 
     /**
-     * 根据栏目id获取栏目模版信息及公开属性
-     *  0：长期公开；1：定期公开；2：及时公开
+     * 根据栏目id获取栏目模版信息及公开属性 0：长期公开；1：定期公开；2：及时公开
+     * 
      * @param ogid
      * @return
      */
@@ -654,7 +777,7 @@ public class ContentGroup {
         try {
             JSONArray condArray = model.getOrCond(pkString, ogid);
             if (condArray != null && condArray.size() > 0) {
-                array = group.or().where(condArray).field(pkString + ",tempContent,tempList,ColumnProperty").select();
+                array = group.or().where(condArray).field(pkString + ",name,tempContent,tempList,ColumnProperty").select();
             }
         } catch (Exception e) {
             nlogger.logout(e);
@@ -664,21 +787,45 @@ public class ContentGroup {
     }
 
     /**
-     * 根据栏目id获取栏目模版信息及公开属性
-     *  0：长期公开；1：定期公开；2：及时公开
+     * 根据栏目默认缩略图及文章小尾巴图标
+     * 
      * @param ogid
      * @return
      */
-    public String getColumnPropertyById(String ogid) {
-        String ColumnProperty = "0";
-        if (StringHelper.InvaildString(ogid)) {
-            JSONObject object = group.eq(pkString, ogid).field("ColumnProperty").find();
-            if (object!=null && object.size() > 0) {
-                ColumnProperty = object.getString("ColumnProperty");
+    @SuppressWarnings("unchecked")
+    public JSONObject getDefaultById(String ogids) {
+        dbFilter filter = new dbFilter();
+        JSONObject obj = new JSONObject(), temp;
+        JSONArray array = null;
+        String[] value = ogids.split(",");
+        if (StringHelper.InvaildString(ogids)) {
+            for (String ogid : value) {
+                if (StringHelper.InvaildString(ogid)) {
+                    if (ObjectId.isValid(ogid) || checkHelper.isInt(ogid)) {
+                        filter.eq(pkString, ogid);
+                    }
+                }
+            }
+            group.or().where(filter.build());
+        }
+        if (group.getCondCount() > 0) {
+            array = group.field(pkString + ",thumbnail,suffix").scan((jsArray) -> {
+                JSONArray rsArray = jsArray;
+                return rsArray;
+            }, 50);
+        }
+        String id;
+        if (array != null && array.size() > 0) {
+            for (Object object : array) {
+                temp = (JSONObject) object;
+                id = temp.getString(pkString);
+                temp.remove("_id");
+                obj.put(id, temp);
             }
         }
-        return ColumnProperty;
+        return obj;
     }
+
     /**
      * 获取栏目
      * 
