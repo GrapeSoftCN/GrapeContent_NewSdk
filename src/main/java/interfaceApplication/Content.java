@@ -783,7 +783,7 @@ public class Content {
         String rString = null;
         JSONObject obj;
         long state = 0, time = 0;
-        String statString = "审核通过", timeDate = null;
+        String statString = "审核通过", timeDate = null,mainName="",author="",souce="";
         if (array != null && array.size() > 0) {
             int l = array.size();
             for (int i = 0; i < l; i++) {
@@ -796,10 +796,29 @@ public class Content {
                     time = obj.getLong("time");
                     timeDate = (time != 0) ? TimeHelper.stampToDate(time) : null;
                 }
-                obj.put("state", statString);
-                obj.put("time", timeDate);
+                if (obj.containsKey("mainName")) {
+                    mainName = obj.getString("mainName");
+                }
+                if (obj.containsKey("author")) {
+                    author = obj.getString("author");
+                }
+                if (obj.containsKey("souce")) {
+                    souce = obj.getString("souce");
+                }
+                obj.put("文章标题", mainName);
+                obj.put("来源", souce);
+                obj.put("作者", author);
+                obj.put("发布时间", timeDate);
+                obj.put("文章状态", statString);
+                obj.put("所属栏目", obj.getString("column"));
                 obj.remove(pkString);
                 obj.remove("ogid");
+                obj.remove("column");
+                obj.remove("mainName");
+                obj.remove("state");
+                obj.remove("souce");
+                obj.remove("author");
+                obj.remove("time");
                 array.set(i, obj);
             }
             rString = array.toJSONString();
