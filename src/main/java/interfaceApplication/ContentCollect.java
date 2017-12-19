@@ -18,7 +18,7 @@ import time.TimeHelper;
 /**
  * 文章收藏
  * 
- * @author win7
+ * 
  *
  */
 public class ContentCollect {

@@ -42,6 +42,16 @@ public class CommonModel {
         }
     }
 
+    /**
+     * 获取查询条件（对于主键_id,需要验证id格式是否正确）
+     * 
+     * @param pkString
+     *            主键字段
+     * @param ids
+     *            ","分隔的多个id
+     * @return [{"field":"_id","logic":"=","value":""},{"field":"_id","logic":
+     *         "=","value":""}]
+     */
     public JSONArray getOrCond(String pkString, String ids) {
         String[] value = null;
         dbFilter filter = new dbFilter();
@@ -52,12 +62,20 @@ public class CommonModel {
                     continue;
                 filter.eq(pkString, id);
             }
-
         }
-
         return filter.build();
     }
 
+    /**
+     * 获取查询条件
+     * 
+     * @param key
+     *            查询字段
+     * @param ids
+     *            ","分隔的多个值
+     * @return [{"field":key1,"logic":"=","value":""},{"field":key2,"logic":"=",
+     *         "value":""}]
+     */
     public JSONArray getOrCondArray(String key, String ids) {
         String[] value = null;
         dbFilter filter = new dbFilter();
@@ -72,34 +90,39 @@ public class CommonModel {
         return filter.build();
     }
 
+    /**
+     * 设置模版
+     * 
+     * @param array
+     * @return
+     */
     @SuppressWarnings("unchecked")
     public JSONArray setTemplate(JSONArray array) {
         long properties = 0L;
         String list = "", content = "", columnName = "";
         array = ContentDencode(array);
-        if ((array == null) || (array.size() <= 0)) {
-            return array;
-        }
-        JSONObject tempObj = getTemplate(array);
-        if ((tempObj != null) && (tempObj.size() > 0)) {
-            for (int i = 0; i < array.size(); i++) {
-                JSONObject object = (JSONObject) array.get(i);
-                String value = object.getString("ogid");
-                if ((tempObj != null) && (tempObj.size() != 0)) {
-                    String temp = tempObj.getString(value);
-                    if (StringHelper.InvaildString(temp)) {
-                        String[] values = temp.split(",");
-                        content = values[0];
-                        list = values[1];
-                        properties = Long.parseLong(values[2]);
-                        columnName = values[3];
+        if (array != null && array.size() > 0) {
+            JSONObject tempObj = getTemplate(array);
+            if ((tempObj != null) && (tempObj.size() > 0)) {
+                for (int i = 0; i < array.size(); i++) {
+                    JSONObject object = (JSONObject) array.get(i);
+                    String value = object.getString("ogid");
+                    if (tempObj != null && tempObj.size() != 0) {
+                        String temp = tempObj.getString(value);
+                        if (StringHelper.InvaildString(temp)) {
+                            String[] values = temp.split(",");
+                            content = values[0];
+                            list = values[1];
+                            properties = Long.parseLong(values[2]);
+                            columnName = values[3];
+                        }
                     }
+                    object.put("TemplateContent", content);
+                    object.put("Templatelist", list);
+                    object.put("ColumnProperty", Long.valueOf(properties));
+                    object.put("ColumnName", columnName);
+                    array.set(i, object);
                 }
-                object.put("TemplateContent", content);
-                object.put("Templatelist", list);
-                object.put("ColumnProperty", Long.valueOf(properties));
-                object.put("ColumnName", columnName);
-                array.set(i, object);
             }
         }
         return array;
@@ -113,7 +136,7 @@ public class CommonModel {
         String TemplateContent = "";
         String Templatelist = "", columnName = "";
         JSONObject tempObj = new JSONObject();
-        if ((array != null) && (array.size() >= 0)) {
+        if (array != null && array.size() >= 0) {
             for (Object obj : array) {
                 tempobj = (JSONObject) obj;
                 String temp = tempobj.getString("ogid");
@@ -198,7 +221,13 @@ public class CommonModel {
         return columnName;
     }
 
-    private String getconfig(String key) {
+    /**
+     * 获取services表中configName配置信息
+     * 
+     * @param key
+     * @return
+     */
+    public String getconfig(String key) {
         String value = "";
         try {
             JSONObject object = JSONObject.toJSON(appsProxy.configValue().getString("other"));
@@ -211,6 +240,12 @@ public class CommonModel {
         return value;
     }
 
+    /**
+     * 获取图片相对路径
+     * 
+     * @param imageURL
+     * @return
+     */
     public String getImageUri(String imageURL) {
         int i = 0;
         if (imageURL.contains("File//upload")) {
@@ -228,114 +263,135 @@ public class CommonModel {
         return imageURL;
     }
 
+    /**
+     * 文章内容解码
+     * 
+     * @param param
+     * @return
+     */
     public String dencode(String param) {
-        if ((param != null) && (!param.equals("")) && (!param.equals("null"))) {
+        if (StringHelper.InvaildString(param)) {
             param = codec.DecodeHtmlTag(param);
             param = codec.decodebase64(param);
         }
         return param;
     }
 
+    /**
+     * 生成查询条件
+     * 
+     * @param info
+     *            {key1:value1,key2:value2}或者[{"field":key1,"logic":"=","value":
+     *            value1}]
+     * @return {"ogid":[{"field":"ogid","logic":"=",
+     *         "value=""}],"cond":[{"field":key1,"logic":"=","value=""}]}
+     */
     public JSONObject buildCondOgid(String info) {
         JSONObject obj = new JSONObject();
-        JSONArray CondArray = new JSONArray();
-        JSONArray CondOgid = new JSONArray();
 
         JSONObject tempObj = JSONObject.toJSON(info);
-        if ((tempObj != null) && (tempObj.size() > 0))
-            obj = buildObj(tempObj, CondOgid, CondArray);
+        if (tempObj != null && tempObj.size() > 0)
+            obj = buildObj(tempObj);
         else {
-            obj = buildArray(JSONArray.toJSONArray(info), CondOgid, CondArray);
+            obj = buildArray(JSONArray.toJSONArray(info));
         }
         return obj;
     }
 
+    /**
+     * 封装查询条件
+     * 
+     * @param object
+     *            {key1:value1,key2:value2}
+     * @return {"ogid":[{"field":"ogid","logic":"=",
+     *         "value=""}],"cond":[{"field":key1,"logic":"=","value=""}]}
+     */
     @SuppressWarnings("unchecked")
-    private JSONObject buildObj(JSONObject object, JSONArray CondOgid, JSONArray condArray) {
+    private JSONObject buildObj(JSONObject object) {
+        JSONArray condArray = new JSONArray();
+        JSONArray CondOgid = new JSONArray();
         JSONObject obj = new JSONObject();
-        
-        String ogid = "";
-        String[] values = null;
+
+        String key;
         dbFilter filter = new dbFilter();
-        dbFilter filter1 = new dbFilter();
-        if ((object != null) && (object.size() > 0)) {
-            for (Iterator localIterator = object.keySet().iterator(); localIterator.hasNext();) {
-                Object object2 = localIterator.next();
-                String key = object2.toString();
-                if (key.equals("ogid")) {
-                    ogid = object.getString(key);
-                    Object value = getROgid(ogid);
-                    String temp = (String) value;
-                    if (temp.contains("errorcode")) {
-                        return null;
-                    }
-                    if (StringHelper.InvaildString(temp)) {
-                        values = temp.split(",");
-                        for (String id : values) {
-                            if ((!StringHelper.InvaildString(id)) || ((!ObjectId.isValid(id)) && (!checkHelper.isInt(id))))
-                                continue;
-                            filter1.eq(key, id);  //获取关联栏目
-                        }
-                        //获取栏目同步模式
-                        //long MixMode = new ContentGroup().getMixMode(ogid);
-                        
-                    }
-                } else {
-                    Object value = object.get(key);
-                    filter.eq(key, value);
+        if (object != null && object.size() > 0) {
+            for (Object str : object.keySet()) {
+                key = str.toString();
+                if (key.equals("ogid")) { // 查询条件包含ogid，则获取链接栏目id
+                    String value = object.getString(key);
+                    CondOgid = getOgidCond(value);
+                } else { // 其他查询条件，不含有ogid字段
+                    filter.eq(key, object.get(key));
                 }
             }
-            CondOgid = filter1.build();
             condArray = filter.build();
-            obj.put("ogid", CondOgid);
-            obj.put("cond", condArray);
         }
+        obj.put("ogid", CondOgid);
+        obj.put("cond", condArray);
         return obj;
     }
 
+    /**
+     * 封装查询条件
+     * 
+     * @param array
+     *            [{"field":key1,"logic":"=","value":value1}]
+     * @return {"ogid":[{"field":"ogid","logic":"=",
+     *         "value=""}],"cond":[{"field":key1,"logic":"=","value=""}]}
+     */
     @SuppressWarnings("unchecked")
-    private JSONObject buildArray(JSONArray array, JSONArray CondOgid, JSONArray condArray) {
-        JSONObject obj = new JSONObject();
+    private JSONObject buildArray(JSONArray array) {
+        String key, value;
+        JSONArray condArray = new JSONArray();
+        JSONArray CondOgid = new JSONArray();
+        JSONObject obj = new JSONObject(), temp;
 
-        String[] values = null;
-        dbFilter filter = new dbFilter();
-        if ((array != null) && (array.size() > 0)) {
-            for (Iterator localIterator = array.iterator(); localIterator.hasNext();) {
-                Object object = localIterator.next();
-                JSONObject temp = (JSONObject) object;
-                String key = temp.getString("field");
-                if (key.equals("ogid")) {
-                    String value = temp.getString("value");
-                    value = getROgid(value);
-                    if (value.contains("errorcode")) {
-                        return null;
-                    }
-                    if (StringHelper.InvaildString(value)) {
-                        values = value.split(",");
-                        for (String id : values) {
-                            if ((!StringHelper.InvaildString(id)) || ((!ObjectId.isValid(id)) && (!checkHelper.isInt(id))))
-                                continue;
-                            filter.eq(key, id);
-                        }
-                    }
-                } else {
+        if (array != null && array.size() > 0) {
+            for (Object object : array) {
+                temp = (JSONObject) object;
+                key = temp.getString("field");
+                if (key.equals("ogid")) { // 查询条件包含ogid，则获取链接栏目id
+                    value = temp.getString("value");
+                    CondOgid = getOgidCond(value);
+                } else { // 其他查询条件，不含有ogid字段
                     condArray.add(temp);
                 }
             }
-            CondOgid = filter.build();
-            obj.put("ogid", CondOgid);
-            obj.put("cond", condArray);
         }
+        obj.put("ogid", CondOgid);
+        obj.put("cond", condArray);
         return obj;
+    }
+
+    /**
+     * 封装与ogid相关的查询条件,存在链接栏目，则获取链接栏目id
+     * 
+     * @param value
+     *            当前栏目id
+     * @return
+     */
+    private JSONArray getOgidCond(String value) {
+        String ogid = "";
+        String[] values = null;
+        dbFilter filter = new dbFilter();
+        ogid = new ContentGroup().getLinkOgid(value);
+        if (StringHelper.InvaildString(ogid)) {
+            values = ogid.split(",");
+            for (String string : values) {
+                filter.eq("ogid", string);
+            }
+        }
+        return filter.build();
     }
 
     public JSONArray buildCond(String Info) {
         JSONArray condArray = null;
         JSONObject object = JSONObject.toJSON(Info);
         dbFilter filter = new dbFilter();
-        if ((object != null) && (object.size() > 0)) {
-            for (Iterator localIterator = object.keySet().iterator(); localIterator.hasNext();) {
-                Object object2 = localIterator.next();
+        if (object != null && object.size() > 0) {
+            // for (Iterator localIterator = object.keySet().iterator();
+            // localIterator.hasNext();) {
+            for (Object object2 : object.keySet()) {
                 String key = object2.toString();
                 Object value = object.get(key);
                 filter.eq(key, value);
@@ -347,40 +403,46 @@ public class CommonModel {
         return condArray;
     }
 
-    public String getROgid(String ogid) {
-        if (StringHelper.InvaildString(ogid)) {
-            ogid = new ContentGroup().getLinkOgid(ogid);
-        }
-        if (ogid.contains("errorcode")) {
-            return ogid;
-        }
-        return ogid;
-    }
-
+    /**
+     * 获取所有下级站点id，包含当前站点
+     * 
+     * @param wbid
+     * @return
+     */
     public String[] getWeb(String wbid) {
-        String[] value = null;
+        String value = "";
+        CacheHelper ch = new CacheHelper();
+        String key = "ChildWebId_" + wbid;
+        value = ch.get(key);
+        if (value != null) {
+            return value.split(",");
+        }
         wbid = getRWbid(wbid);
         String temp = (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebTree/" + wbid);
-        if ((temp != null) && (!temp.equals(""))) {
-            value = temp.split(",");
-        }
-        return value;
+        ch.setget(key, temp, 86400L);
+        return temp.split(",");
     }
 
+    /**
+     * 获取实站id
+     * 
+     * @param wbid
+     * @return
+     */
     public String getRWbid(String wbid) {
-        String value = wbid;
+        // String value = wbid;
         CacheHelper cacheHelper = new CacheHelper();
         String key = "vID2rID_" + wbid;
-        Object obj = (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/VID2RID/" + wbid);
-        if (obj != null) {
-            value = obj.toString();
-            if (StringHelper.InvaildString(value)) {
-                cacheHelper.setget(key, value, 86400L);
-            }
+        String value = cacheHelper.get(key);
+        if (value != null) {
+            return value;
         }
-        return value;
+        String temp = (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/VID2RID/" + wbid);
+        cacheHelper.setget(key, temp, 86400L);
+        return temp;
     }
 
+    @SuppressWarnings("unchecked")
     public JSONObject ContentEncode(JSONObject object) {
         String temp = "";
         if ((object != null) && (object.size() > 0)) {
@@ -398,6 +460,7 @@ public class CommonModel {
         return object;
     }
 
+    @SuppressWarnings("unchecked")
     public JSONArray ContentDencode(JSONArray array) {
         if ((array != null) && (array.size() > 0)) {
             int l = array.size();
@@ -410,11 +473,11 @@ public class CommonModel {
         return array;
     }
 
+    @SuppressWarnings("unchecked")
     public JSONObject ContentDencode(JSONObject object) {
         if ((object != null) && (object.size() > 0) && (object.containsKey("content"))) {
             object.put("content", object.escapeHtmlGet("content"));
         }
-
         return object;
     }
 
@@ -549,8 +612,6 @@ public class CommonModel {
                 Matcher matcher = this.ATTR_PATTERN.matcher(value.toLowerCase());
                 if (value.contains("/File/upload")) {
                     code = matcher.find() ? 0 : (value.contains("/File/upload") ? 1 : 2);
-                    // code = value.contains("/File/upload") ? 1 :
-                    // matcher.find() ? 0 : 2;
                 } else if (value.contains("/") || value.contains("\\")) {
                     code = matcher.find() ? 0 : ((value.startsWith("/") || value.startsWith("\\")) ? 3 : 2);
                 }
@@ -565,7 +626,6 @@ public class CommonModel {
                 case 2:
                     break;
                 case 3:
-                    // value = AddHtmlPrefix(value);
                     value = getconfig("fileHost") + value;
                     break;
                 }

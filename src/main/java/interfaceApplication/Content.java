@@ -20,10 +20,13 @@ import apps.appIns;
 import apps.appsProxy;
 import authority.plvDef.UserMode;
 import authority.plvDef.plvType;
+import browser.PhantomJS;
 import cache.CacheHelper;
 import check.checkHelper;
 import database.dbFilter;
+import file.fileHelper;
 import httpServer.grapeHttpUnit;
+import image.imageHelper;
 import interfaceModel.GrapeDBSpecField;
 import interfaceModel.GrapeTreeDBModel;
 import json.JSONHelper;
@@ -364,21 +367,8 @@ public class Content {
                 state = object.getInt("state");
                 info = content.data(object).autoComplete().insertOnce().toString();
                 ro = findOid(info);
-                appIns env = appsProxy.getCurrentAppInfo();
-                rs.execute(() -> {
-                    String GovId = "";
-                    appsProxy.setCurrentAppInfo(env);
-                    if (object != null && object.size() > 0) {
-                        if (object.containsKey("GovId")) {
-                            GovId = object.getString("GovId");
-                            if (StringHelper.InvaildString(GovId) && !GovId.equals("0")) {
-                                new PushContentToGov().pushToGov(object, GovId);
-                            }
-                        }
-                    }
-                });
+
                 result = (ro != null && ro.size() > 0) ? rMsg.netMSG(0, ro) : result;
-                // 发送数据到kafka
                 appsProxy.proxyCall("/GrapeSendKafka/SendKafka/sendData2Kafka/" + info + "/int:1/int:1/int:" + state);
             }
         } catch (Exception e) {
@@ -447,7 +437,6 @@ public class Content {
                     return info;
                 }
                 int state = object.getInt("state");
-                // 若文章为视频文章或者超链接文章获取缩略图，同时视频转换为flv,mp4 !!
                 String _info = content.data(object).autoComplete().insertOnce().toString();
                 appIns env = appsProxy.getCurrentAppInfo();
                 rs.execute(() -> {
@@ -562,7 +551,6 @@ public class Content {
             if (object.containsKey("GovId")) {
                 GovId = object.getString("GovId");
             }
-            // String ogid = getConnColumn(object);
             if (StringHelper.InvaildString(GovId) && !GovId.equals("0")) {
                 // 同步文章到政府信息公开网
                 result = new PushContentToGov().pushToGov(object, GovId);
@@ -653,7 +641,6 @@ public class Content {
         if (userInfo == null || userInfo.size() <= 0) {
             return rMsg.netMSG(1, "当前登录信息已失效,请重新登录后再修改文章");
         }
-        // infos = model.ContentEncode(infos);
         if (infos != null && infos.size() > 0) {
             contents = checkparam(infos);
             if (JSONHelper.string2json(contents) != null && contents.contains("errorcode")) {
@@ -735,16 +722,89 @@ public class Content {
      * @return
      */
     public Object ExportContent(String ContentInfo, String fileName) {
-        if (StringHelper.InvaildString(ContentInfo)) {
-            return rMsg.netMSG(1, "无效内容");
-        }
         try {
-            return excelHelper.out(ContentInfo);
+            ContentInfo = SearchExportInfo(ContentInfo);
+            if (StringHelper.InvaildString(ContentInfo)) {
+                return excelHelper.out(ContentInfo);
+            }
         } catch (Exception e) {
             nlogger.logout(e, "导出异常");
-            e.printStackTrace();
         }
-        return rMsg.netMSG(false, "导出文件信息");
+        return rMsg.netMSG(false, "导出失败");
+    }
+
+    /**
+     * 整理查询出的文章数据，导出
+     * 
+     * @param array
+     * @return
+     */
+    @SuppressWarnings("unchecked")
+    private String SearchExportInfo(String condString) {
+        JSONObject obj,column;
+        String temp, ogids = "";
+        JSONArray array = null;
+        if (StringHelper.InvaildString(condString)) {
+            JSONArray condArray = JSONArray.toJSONArray(condString);
+            array = content.eq("wbid", currentWeb).where(condArray).field("mainName,state,souce,author,time,ogid").select();
+            if (array != null && array.size() > 0) {
+                // 获取栏目id
+                for (Object object : array) {
+                    obj = (JSONObject) object;
+                    temp = obj.getString("ogid");
+                    if (!ogids.contains(temp)) {
+                        ogids += temp + ",";
+                    }
+                }
+                String ColumnInfo = new ContentGroup().getColumnName(StringHelper.fixString(ogids, ','));
+                column = JSONObject.toJSON(ColumnInfo);
+                if (column != null && column.size() > 0) {
+                    int l = array.size();
+                    for (int i = 0; i < l; i++) {
+                        obj = (JSONObject) array.get(i);
+                        temp = obj.getString("ogid");
+                        obj.put("column", column.getString(temp));
+                        array.set(i, obj);
+                    }
+                }
+            }
+        }
+        return CollateInfo(array);
+    }
+
+    /**
+     * 整理查询出的文章信息，用于导出
+     * 
+     * @param array
+     * @return
+     */
+    @SuppressWarnings("unchecked")
+    private String CollateInfo(JSONArray array) {
+        String rString = null;
+        JSONObject obj;
+        long state = 0, time = 0;
+        String statString = "审核通过", timeDate = null;
+        if (array != null && array.size() > 0) {
+            int l = array.size();
+            for (int i = 0; i < l; i++) {
+                obj = (JSONObject) array.get(i);
+                if (obj.containsKey("state")) {
+                    state = obj.getLong("state");
+                    statString = (state == 0) ? "待审核" : (state == 1) ? "审核不通过" : "审核通过";
+                }
+                if (obj.containsKey("time")) {
+                    time = obj.getLong("time");
+                    timeDate = (time != 0) ? TimeHelper.stampToDate(time) : null;
+                }
+                obj.put("state", statString);
+                obj.put("time", timeDate);
+                obj.remove(pkString);
+                obj.remove("ogid");
+                array.set(i, obj);
+            }
+            rString = array.toJSONString();
+        }
+        return rString;
     }
 
     /**
@@ -915,7 +975,7 @@ public class Content {
     private String getRogid(String ogid) {
         String[] value = null;
         dbFilter filter = new dbFilter();
-        ogid = model.getROgid(ogid);
+        ogid = new ContentGroup().getLinkOgid(ogid);
         if (!StringHelper.InvaildString(ogid)) {
             return rMsg.netMSG(1, "无效栏目id");
         }
@@ -1173,42 +1233,47 @@ public class Content {
      *
      */
     public String ShowArticle(int idx, int pageSize, String condString) {
-        long total = 0;
         String ogids = "";
-        JSONArray condArray = JSONArray.toJSONArray(condString);
-        // 获取下级站点
-        String[] wbids = getAllContent(currentWeb);
+        long total = 0;
         JSONArray array = null;
-        if (StringHelper.InvaildString(condString)) {
-            if (condArray != null && condArray.size() != 0) {
-                JSONObject temp = findByColumnName(condArray);
-                if (temp != null && temp.size() > 0) {
-                    condArray = JSONArray.toJSONArray(temp.getString("condArray"));
-                    if (temp.containsKey("ogid")) {
-                        ogids = temp.getString("ogid");
-                        if (StringHelper.InvaildString(ogids)) {
-                            ogids = model.getROgid(ogids);
-                            JSONArray cond = model.getOrCondArray("ogid", ogids);
-                            if (cond != null && cond.size() > 0) {
-                                content.or().where(cond);
-                            } else {
-                                return rMsg.netMSG(1, "无效条件");
-                            }
+        dbFilter filter = new dbFilter();
+        JSONArray webArray = null;
+        JSONObject temp;
+        JSONArray condArray = JSONArray.toJSONArray(condString);
+        if (condArray != null && condArray.size() > 0) {
+            // 根据栏目搜索文章，将栏目名称转换为ogid,获取当前站点及下级站点的栏目id
+            temp = findByColumnName(JSONArray.toJSONArray(condString));
+            if (temp != null && temp.size() > 0) {
+                if (temp.containsKey("ogid")) {
+                    ogids = temp.getString("ogid");
+                    if (StringHelper.InvaildString(ogids)) {
+                        JSONArray ogidArray = model.getOrCondArray("ogid", ogids);
+                        if (ogidArray != null && ogidArray.size() > 0) {
+                            content.or().where(ogidArray);
                         } else {
-                            return rMsg.netPAGE(idx, pageSize, 0, new JSONArray());
+                            return rMsg.netMSG(1, "无效条件");
                         }
-                    } else {
-                        if (wbids != null && wbids.length > 0) {
-                            content.or();
-                            for (String id : wbids) {
-                                content.eq("wbid", id);
-                            }
+                    } 
+                }else { // 不包含栏目名称查询，则获取当前站点及下级站点的栏目id
+                    String[] wbids = model.getWeb(currentWeb); // 获取下级站点,包含当前站点
+                    if (wbids != null) {
+                        for (String string : wbids) {
+                            filter.eq("wbid", string);
+                        }
+                        webArray = filter.build(); // 生成jsonarray型查询条件[{"field":"wbid","logic":"=","value":""}]
+                        if (webArray != null && webArray.size() > 0) {
+                            content.or().where(webArray);
+                        } else {
+                            return rMsg.netMSG(1, "无效条件");
                         }
                     }
-                    if (condArray != null && condArray.size() != 0) {
-                        content.and().where(condArray);
+                }
+                if (temp.containsKey("condArray")) {
+                    JSONArray condarray = temp.getJsonArray("condArray");
+                    if (condarray != null && condarray.size() > 0) {
+                        content.and().where(condarray);
                     } else {
-                        return rMsg.netPAGE(idx, pageSize, 0, new JSONArray());
+                        return rMsg.netMSG(1, "无效条件");
                     }
                 }
             }
@@ -1218,19 +1283,21 @@ public class Content {
             array = model.setTemplate(array); // 设置模版
             array = model.ContentDencode(array);
             model.getImgs(model.getDefault(currentWeb, array));
+        } else {
+            return rMsg.netMSG(1, "无效条件");
         }
-        return rMsg.netPAGE(idx, pageSize, total, getColumnName(array));
+        return rMsg.netPAGE(idx, pageSize, total, array);
     }
 
     /**
-     * 根据栏目名称查询文章，查询条件重组
+     * 根据栏目名称查询文章，查询条件重组,只包含当前站点及下级站点的栏目id
      * 
      * @project GrapeContent
      * @package interfaceApplication
      * @file Content.java
      * 
      * @param condArray
-     * @return
+     * @return {"ogid"}
      *
      */
     @SuppressWarnings("unchecked")
@@ -2095,7 +2162,7 @@ public class Content {
      *
      */
     private String checkparam(JSONObject contentInfo) {
-        String mainName = "", fatherid;
+        String mainName = "", fatherid, contents = "";
         if (contentInfo == null || contentInfo.size() <= 0) {
             return rMsg.netMSG(100, "无效数据");
         }
@@ -2112,7 +2179,36 @@ public class Content {
                 contentInfo.remove("ogid");
             }
         }
+        // if (contentInfo.containsKey("content")) {
+        // contents = contentInfo.getString("content");
+        // if (StringHelper.InvaildString(contents) &&
+        // checkHelper.IsUrl(contents)) {
+        // //huo
+        // }
+        // }
+        if (contentInfo.containsKey("_id")) {
+            contentInfo.remove("_id");
+        }
         return contentInfo.toJSONString();
+    }
+
+    /**
+     * 获取网页缩略图
+     * 
+     * @param contents
+     * @return
+     */
+    private String getNetImage(String contents) {
+
+        String path = "";
+        try {
+            PhantomJS pjs = new PhantomJS();
+
+        } catch (Exception e) {
+            nlogger.logout(e);
+            path = "";
+        }
+        return path;
     }
 
     /**

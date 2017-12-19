@@ -52,10 +52,15 @@ public class ContentGroup {
      * 设置同步栏目
      * 
      * @param currentOgid
+     *            当前栏目id
      * @param LinkOgid
+     *            链接栏目id，多个id之间使用","分隔
+     * @param mixMode
+     *            栏目模式 0：查询文章时，显示自身栏目文章；1：查询文章时，不显示自身栏目文章
      * @return
      */
-    public String SetLinkOgid(String currentOgid, String LinkOgid,int mixMode) {
+    @SuppressWarnings("unchecked")
+    public String SetLinkOgid(String currentOgid, String LinkOgid, int mixMode) {
         JSONObject rs = null;
         JSONObject obj = new JSONObject();
         obj.put("linkOgid", LinkOgid);
@@ -67,9 +72,10 @@ public class ContentGroup {
     /**
      * 设置同步栏目模式，即在查询文章时，是否显示自身栏目所包含的文章数据
      * 
-     * @param currentOgid  当前栏目id
-     * @param flag  0：不显示自身栏目所包含文章数据
-     *              1：显示自身栏目所包含文章数据
+     * @param currentOgid
+     *            当前栏目id
+     * @param flag
+     *            0：不显示自身栏目所包含文章数据 1：显示自身栏目所包含文章数据
      * @return
      */
     public String SetMixMode(String currentOgid, int flag) {
@@ -265,7 +271,7 @@ public class ContentGroup {
     }
 
     /**
-     * 根据栏目名称模糊查询，获取栏目id
+     * 当前站点及下级站点下，根据栏目名称模糊查询，获取栏目id,含有链接栏目，获取链接栏目id，否则获取当前栏目id
      * 
      * @project GrapeContent
      * @package interfaceApplication
@@ -278,7 +284,17 @@ public class ContentGroup {
     public String getOgid(String name) {
         JSONObject obj;
         String ogid = "", temp;
-        JSONArray array = group.like("name", name).field(pkString + ",name").select();
+        dbFilter filter = new dbFilter();
+        //获取下级站点，包含当前站点
+        String[] wbids = model.getWeb(currentWeb);
+        for (String string : wbids) {
+            filter.eq("wbid", string);
+        }
+        JSONArray condArray = filter.build();
+        if (condArray==null || condArray.size() <= 0) {
+            return rMsg.netMSG(2, "当前登录信息已失效，请重新登录");
+        }
+        JSONArray array = group.or().where(condArray).and().like("name", name).field(pkString + ",name").select();
         if (array != null && array.size() > 0) {
             for (Object object2 : array) {
                 obj = (JSONObject) object2;
@@ -286,7 +302,7 @@ public class ContentGroup {
                 ogid += temp + ",";
             }
         }
-        return StringHelper.fixString(ogid, ',');
+        return getLinkOgid(StringHelper.fixString(ogid, ','));
     }
 
     /**
@@ -672,51 +688,58 @@ public class ContentGroup {
 
     /**
      * 获取栏目同步模式
-     * @param ogid  当前栏目id
-     * @return      0：不显示自身栏目所包含文章数据；1：显示自身栏目所包含文章数据
+     * 
+     * @param ogid
+     *            当前栏目id
+     * @return 0：不显示自身栏目所包含文章数据；1：显示自身栏目所包含文章数据
      */
     public long getMixMode(String ogid) {
         long MixMode = 0;
         JSONObject object = null;
         if (StringHelper.InvaildString(ogid)) {
             object = group.eq("_id", ogid).field("MixMode").find();
-            if (object!=null && object.size() > 0) {
+            if (object != null && object.size() > 0) {
                 MixMode = object.getLong("MixMode");
             }
         }
         return MixMode;
     }
+
     /**
-     * 获取链接栏目id,当前栏目存在链接栏目id，则取链接栏目id，否则去栏目id
+     * 获取链接栏目id 1、当前栏目存在链接栏目 1.1 模式为0，直接取链接栏目id 1.1 模式为1，取链接栏目id和当前栏目id
+     * 2、当前栏目不存在链接栏目，直接取当前栏目id
      * 
      * @param ogids
+     *            当前栏目id
      * @return
      */
     public String getLinkOgid(String ogids) {
         JSONObject obj;
-        String linkId = "0", temp, rsOgid = "";
+        String id = "0", rsOgid = "";
+        long MixMode = 0;
         JSONArray array = null;
-        if (!StringHelper.InvaildString(ogids)) {
-            return rMsg.netMSG(1, "无效栏目id");
-        }
-        JSONArray condArray = model.getOrCond(pkString, ogids);
-        if (condArray != null && condArray.size() > 0) {
-            array = group.or().where(condArray).field(pkString + ",linkOgid").select();
-        }
-        if (array != null && array.size() > 0) {
-            for (Object object : array) {
-                obj = (JSONObject) object;
-                temp = obj.getString(pkString);
-                if (obj.containsKey("linkOgid")) {
-                    linkId = obj.getString("linkOgid");
-                }
-                if (!StringHelper.InvaildString(linkId) || linkId.equals("0")) {
-                    if (!rsOgid.contains(temp)) {
-                        rsOgid += temp + ",";
-                    }
-                } else {
-                    if (!rsOgid.contains(linkId)) {
-                        rsOgid += linkId + ",";
+        if (StringHelper.InvaildString(ogids)) {
+            // 获取查询条件，封装成[{"field":"","logic":"=","value":""}]
+            JSONArray condArray = model.getOrCond(pkString, ogids);
+            group.or().where(condArray);
+            if (group.getCondCount() > 0) { // 条件有效
+                array = group.field(pkString + ",linkOgid,MixMode").select();
+                if (array != null && array.size() > 0) {
+                    for (Object object : array) {
+                        obj = (JSONObject) object;
+                        if (obj.containsKey("MixMode")) {
+                            MixMode = obj.getLong("MixMode");
+                        }
+                        if (obj.containsKey("linkOgid")) { // 获取链接栏目id
+                            id = obj.getString("linkOgid");
+                            id = (MixMode == 1) ? id + "," + obj.getString(pkString) : id;
+                        }
+                        if (!StringHelper.InvaildString(id) || id.equals("0")) {
+                            id = obj.getString("_id"); // 当前栏目无链接栏目，则获取本身栏目id
+                        }
+                        if (!rsOgid.contains(id)) { // 去除重复栏目
+                            rsOgid += id + ",";
+                        }
                     }
                 }
             }
