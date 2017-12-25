@@ -430,17 +430,18 @@ public class CommonModel {
      * @return
      */
     public String getRWbid(String wbid) {
-        // String value = wbid;
-        CacheHelper cacheHelper = new CacheHelper();
+        CacheHelper cacheHelper = new CacheHelper("redis");
         String key = "vID2rID_" + wbid;
         String value = cacheHelper.get(key);
-        if (value != null) {
+        if (StringHelper.InvaildString(value)) {
             return value;
         }
         String temp = (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/VID2RID/" + wbid);
-        cacheHelper.setget(key, temp, 86400L);
-        return temp;
+        value = cacheHelper.setget(key, temp, 20);
+        System.out.println("wbid2: "+value);
+        return value;
     }
+
 
     @SuppressWarnings("unchecked")
     public JSONObject ContentEncode(JSONObject object) {

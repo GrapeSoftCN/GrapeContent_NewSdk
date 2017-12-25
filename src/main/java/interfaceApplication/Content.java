@@ -19,14 +19,11 @@ import Model.WsCount;
 import apps.appIns;
 import apps.appsProxy;
 import authority.plvDef.UserMode;
-import authority.plvDef.plvType;
 import browser.PhantomJS;
 import cache.CacheHelper;
 import check.checkHelper;
 import database.dbFilter;
-import file.fileHelper;
 import httpServer.grapeHttpUnit;
-import image.imageHelper;
 import interfaceModel.GrapeDBSpecField;
 import interfaceModel.GrapeTreeDBModel;
 import json.JSONHelper;
@@ -228,11 +225,11 @@ public class Content {
      *            文章内容
      * @return 返回0:表示文章不存在；返回1:表示文章已存在；
      */
-    public String ContentIsExist(String ogid, String mainName) {
+    public String ContentIsExist(String ogid, String mainName,int type) {
         String contentInfo = "";
         JSONObject object = JSONObject.toJSON(execRequest.getChannelValue(grapeHttpUnit.formdata).toString());
         contentInfo = object.getString("param");
-        return ContentIsExist(ogid, mainName, contentInfo);
+        return ContentIsExist(ogid, mainName,type, contentInfo);
     }
 
     /**
@@ -244,14 +241,22 @@ public class Content {
      *            文章标题
      * @param contentInfo
      *            文章内容
+     * @param type
+     *            0:正常文章；1：外链文章
      * @return 返回0:表示文章不存在；返回1:表示文章已存在；
      */
-    public String ContentIsExist(String ogid, String mainName, String contentInfo) {
+    public String ContentIsExist(String ogid, String mainName, int type,String contentInfo) {
         JSONObject object = null;
         contentInfo = codec.DecodeHtmlTag(contentInfo);
         contentInfo = codec.decodebase64(contentInfo);
         if (StringHelper.InvaildString(ogid)) {
-            object = content.eq("ogid", ogid).eq("mainName", mainName).eq("content", contentInfo).find();
+            content.eq("ogid", ogid).eq("mainName", mainName);
+            if (type == 0) {
+                content.eq("content", contentInfo);
+            }else{
+                content.eq("contenturl", "contenturl");
+            }
+            object = content.find();
         }
         return (object != null && object.size() > 0) ? "1" : "0";
     }
@@ -741,7 +746,7 @@ public class Content {
      */
     @SuppressWarnings("unchecked")
     private String SearchExportInfo(String condString) {
-        JSONObject obj,column;
+        JSONObject obj, column;
         String temp, ogids = "";
         JSONArray array = null;
         if (StringHelper.InvaildString(condString)) {
@@ -783,7 +788,7 @@ public class Content {
         String rString = null;
         JSONObject obj;
         long state = 0, time = 0;
-        String statString = "审核通过", timeDate = null,mainName="",author="",souce="";
+        String statString = "审核通过", timeDate = null, mainName = "", author = "", souce = "";
         if (array != null && array.size() > 0) {
             int l = array.size();
             for (int i = 0; i < l; i++) {
@@ -982,7 +987,7 @@ public class Content {
             nlogger.logout("Content.findPicByGroupID: " + e);
             array = null;
         }
-        return rMsg.netMSG(true, model.setTemplate(array));
+        return rMsg.netMSG(true, array);
     }
 
     /**
@@ -1028,6 +1033,15 @@ public class Content {
         return rMsg.netPAGE(idx, pageSize, content.dirty().count(), array);
     }
 
+    /**
+     * 前台按条件分页显示文章数据
+     * 
+     * @param wbid
+     * @param idx
+     * @param pageSize
+     * @param condString
+     * @return
+     */
     public String PageBy(String wbid, int idx, int pageSize, String condString) {
         String out = null;
         long total = 0;
@@ -1043,6 +1057,8 @@ public class Content {
             return rMsg.netMSG(1, "无效条件");
         }
         JSONObject obj = model.buildCondOgid(condString);
+        // 获取所有下级栏目
+        obj = getNextColumn(obj);
         if (obj != null && obj.size() > 0) {
             condArray = obj.getJsonArray("cond");
             condOgid = obj.getJsonArray("ogid");
@@ -1054,8 +1070,9 @@ public class Content {
             }
         }
         if (content.getCondCount() > 0) {
+            content.and().eq("wbid", model.getRWbid(wbid)).eq("isdelete", 0).eq("isvisble", 0);
             total = content.dirty().count();
-            array = content.and().eq("wbid", model.getRWbid(wbid)).eq("isdelete", 0).eq("isvisble", 0).desc("time").field("_id,mainName,time,wbid,ogid,image,clickcount,souce").desc("time").desc("sort").desc("_id").page(idx, pageSize);
+            array = content.desc("time").field("_id,mainName,time,wbid,ogid,image,clickcount,souce").desc("time").desc("sort").desc("_id").page(idx, pageSize);
             array = model.setTemplate(array); // 设置模版
             out = rMsg.netPAGE(idx, pageSize, total, model.getImgs(model.getDefault(wbid, array)));
         } else {
@@ -1272,8 +1289,8 @@ public class Content {
                         } else {
                             return rMsg.netMSG(1, "无效条件");
                         }
-                    } 
-                }else { // 不包含栏目名称查询，则获取当前站点及下级站点的栏目id
+                    }
+                } else { // 不包含栏目名称查询，则获取当前站点及下级站点的栏目id
                     String[] wbids = model.getWeb(currentWeb); // 获取下级站点,包含当前站点
                     if (wbids != null) {
                         for (String string : wbids) {
@@ -1296,7 +1313,8 @@ public class Content {
                     }
                 }
             }
-            array = content.dirty().desc("_id").eq("isdelete", 0).eq("isvisble", 0).page(idx, pageSize);
+            content.eq("isdelete", 0).eq("isvisble", 0);
+            array = content.dirty().desc("_id").page(idx, pageSize);
             total = content.count();
             content.clear();
             array = model.setTemplate(array); // 设置模版
@@ -1305,7 +1323,7 @@ public class Content {
         } else {
             return rMsg.netMSG(1, "无效条件");
         }
-        return rMsg.netPAGE(idx, pageSize, total, array);
+        return rMsg.netPAGE(idx, pageSize, total, getColumnName(array));
     }
 
     /**
@@ -2039,7 +2057,7 @@ public class Content {
             // 点击次数+1
             AddArticleClick(obj);
             // 增加访问用户记录
-            // new ContentRecord().AddReader(id);
+            new ContentRecord().AddReader(id);
         }
         obj = model.ContentDencode(obj);
         obj = model.getImgs(model.getDefault(obj));

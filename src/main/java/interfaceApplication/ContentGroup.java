@@ -285,13 +285,13 @@ public class ContentGroup {
         JSONObject obj;
         String ogid = "", temp;
         dbFilter filter = new dbFilter();
-        //获取下级站点，包含当前站点
+        // 获取下级站点，包含当前站点
         String[] wbids = model.getWeb(currentWeb);
         for (String string : wbids) {
             filter.eq("wbid", string);
         }
         JSONArray condArray = filter.build();
-        if (condArray==null || condArray.size() <= 0) {
+        if (condArray == null || condArray.size() <= 0) {
             return rMsg.netMSG(2, "当前登录信息已失效，请重新登录");
         }
         JSONArray array = group.or().where(condArray).and().like("name", name).field(pkString + ",name").select();
@@ -359,6 +359,7 @@ public class ContentGroup {
      * @param groupInfo
      * @return
      */
+    @SuppressWarnings("unchecked")
     public String GroupEdit(String ogid, String groupInfo) {
         int code = 99;
         String result = rMsg.netMSG(100, "栏目修改失败");
@@ -366,6 +367,9 @@ public class ContentGroup {
         String contant = "0", name = "";
         JSONObject groupinfo = JSONObject.toJSON(groupInfo);
         if (groupinfo != null && groupinfo.size() != 0) {
+            if (groupInfo.contains("ColumnProperty")) {
+                groupinfo.put("ColumnProperty", Long.parseLong(groupinfo.getString("ColumnProperty")));
+            }
             if (groupinfo.containsKey("Contant")) { // contant:修改文章公开状态是否影响下级网站
                 contant = groupinfo.getString("Contant");
                 groupinfo.remove("Contant");
@@ -581,7 +585,7 @@ public class ContentGroup {
             return rMsg.netPAGE(idx, pageSize, total, new JSONArray());
         }
         wbid = model.getRWbid(wbid);
-        group.eq("wbid", wbid);
+        group.eq("wbid", wbid).eq("isvisble", 0);
         total = group.dirty().count();
         array = group.desc("sort").asc(pkString).page(idx, pageSize);
         // array = CheckGroup(array);
@@ -680,8 +684,11 @@ public class ContentGroup {
                 return rMsg.netPAGE(idx, pageSize, total, new JSONArray());
             }
         }
-        group.eq("wbid", wbid);
+        group.eq("wbid", wbid).eq("isvisble", 0);
         total = group.dirty().count();
+//        if (type == 1) { // 后台查询，隐藏栏目
+//            group.eq("isvisble", 0);
+//        }
         array = group.desc("sort").asc(pkString).page(idx, pageSize);
         return rMsg.netPAGE(idx, pageSize, total, join(array));
     }
