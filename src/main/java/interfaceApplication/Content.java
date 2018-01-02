@@ -12,30 +12,30 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.jsoup.Jsoup;
 
-import Concurrency.distributedLocker;
-import JGrapeSystem.rMsg;
 import Model.CommonModel;
 import Model.WsCount;
-import apps.appIns;
-import apps.appsProxy;
-import authority.plvDef.UserMode;
-import browser.PhantomJS;
-import cache.CacheHelper;
-import check.checkHelper;
-import database.dbFilter;
-import httpServer.grapeHttpUnit;
-import interfaceModel.GrapeDBSpecField;
-import interfaceModel.GrapeTreeDBModel;
-import json.JSONHelper;
-import nlogger.nlogger;
-import offices.excelHelper;
-import privacyPolicy.privacyPolicy;
-import rpc.execRequest;
-import security.codec;
-import session.session;
-import string.StringHelper;
-import thirdsdk.kuweiCheck;
-import time.TimeHelper;
+import common.java.Concurrency.distributedLocker;
+import common.java.JGrapeSystem.rMsg;
+import common.java.apps.appIns;
+import common.java.apps.appsProxy;
+import common.java.authority.plvDef.UserMode;
+import common.java.browser.PhantomJS;
+import common.java.cache.CacheHelper;
+import common.java.check.checkHelper;
+import common.java.database.dbFilter;
+import common.java.httpServer.grapeHttpUnit;
+import common.java.interfaceModel.GrapeDBSpecField;
+import common.java.interfaceModel.GrapeTreeDBModel;
+import common.java.json.JSONHelper;
+import common.java.nlogger.nlogger;
+import common.java.offices.excelHelper;
+import common.java.privacyPolicy.privacyPolicy;
+import common.java.rpc.execRequest;
+import common.java.security.codec;
+import common.java.session.session;
+import common.java.string.StringHelper;
+import common.java.thirdsdk.kuweiCheck;
+import common.java.time.TimeHelper;
 
 public class Content {
     private GrapeTreeDBModel content;
@@ -225,11 +225,11 @@ public class Content {
      *            文章内容
      * @return 返回0:表示文章不存在；返回1:表示文章已存在；
      */
-    public String ContentIsExist(String ogid, String mainName,int type) {
+    public String ContentIsExist(String ogid, String mainName, int type) {
         String contentInfo = "";
         JSONObject object = JSONObject.toJSON(execRequest.getChannelValue(grapeHttpUnit.formdata).toString());
         contentInfo = object.getString("param");
-        return ContentIsExist(ogid, mainName,type, contentInfo);
+        return ContentIsExist(ogid, mainName, type, contentInfo);
     }
 
     /**
@@ -245,7 +245,7 @@ public class Content {
      *            0:正常文章；1：外链文章
      * @return 返回0:表示文章不存在；返回1:表示文章已存在；
      */
-    public String ContentIsExist(String ogid, String mainName, int type,String contentInfo) {
+    public String ContentIsExist(String ogid, String mainName, int type, String contentInfo) {
         JSONObject object = null;
         contentInfo = codec.DecodeHtmlTag(contentInfo);
         contentInfo = codec.decodebase64(contentInfo);
@@ -253,7 +253,7 @@ public class Content {
             content.eq("ogid", ogid).eq("mainName", mainName);
             if (type == 0) {
                 content.eq("content", contentInfo);
-            }else{
+            } else {
                 content.eq("contenturl", "contenturl");
             }
             object = content.find();
@@ -308,7 +308,8 @@ public class Content {
      */
     @SuppressWarnings("unchecked")
     public String PublishArticle(String ArticleInfo) {
-        long state = 2;
+        long state = 2, time = 0;
+        String temptime = "";
         long currentTime = TimeHelper.nowMillis();
         ArticleInfo = codec.DecodeFastJSON(ArticleInfo);
         JSONObject object = JSONHelper.string2json(ArticleInfo);
@@ -319,13 +320,17 @@ public class Content {
             return rMsg.netMSG(100, "发布失败");
         }
         if (object.containsKey("time")) {
-            long time = Long.parseLong(object.getString("time"));
-            if (time > currentTime) {
-                object.put("time", currentTime);
+            temptime = object.getString("time");
+            if (StringHelper.InvaildString(temptime)) {
+                time = Long.parseLong(temptime);
             }
-        } else {
-            object.put("time", currentTime);
         }
+        if (time != 0) {
+            time = (time < currentTime) ? time : currentTime;
+        } else {
+            time = currentTime;
+        }
+        object.put("time", time);
         object.put("wbid", currentWeb);
         if (object.containsKey("ogid")) { // 文章状态
             String ogid = object.getString("ogid");
@@ -374,7 +379,7 @@ public class Content {
                 ro = findOid(info);
 
                 result = (ro != null && ro.size() > 0) ? rMsg.netMSG(0, ro) : result;
-                appsProxy.proxyCall("/GrapeSendKafka/SendKafka/sendData2Kafka/" + info + "/int:1/int:1/int:" + state);
+//                appsProxy.proxyCall("/GrapeSendKafka/SendKafka/sendData2Kafka/" + info + "/int:1/int:1/int:" + state);
             }
         } catch (Exception e) {
             nlogger.logout(e);
@@ -864,7 +869,7 @@ public class Content {
         case 0:
             result = getSingleArticle(obj, oid);
             // 发送数据到kafka
-            appsProxy.proxyCall("/GrapeSendKafka/SendKafka/sendData2Kafka/" + oid + "/int:1/int:2/int:2");
+//            appsProxy.proxyCall("/GrapeSendKafka/SendKafka/sendData2Kafka/" + oid + "/int:1/int:2/int:2");
             break;
         case 1:
             result = rMsg.netMSG(3, "您不属于该单位，无权查看该单位信息");
@@ -1070,9 +1075,9 @@ public class Content {
             }
         }
         if (content.getCondCount() > 0) {
-            content.and().eq("wbid", model.getRWbid(wbid)).eq("isdelete", 0).eq("isvisble", 0);
+            content.and().eq("wbid", model.getRWbid(wbid)).eq("isdelete", 0).eq("isvisble", 0).eq("state", 2);
             total = content.dirty().count();
-            array = content.desc("time").field("_id,mainName,time,wbid,ogid,image,clickcount,souce").desc("time").desc("sort").desc("_id").page(idx, pageSize);
+            array = content.desc("time").field("_id,mainName,time,wbid,ogid,image,clickcount,souce,contenturl").desc("time").desc("sort").desc("_id").page(idx, pageSize);
             array = model.setTemplate(array); // 设置模版
             out = rMsg.netPAGE(idx, pageSize, total, model.getImgs(model.getDefault(wbid, array)));
         } else {
@@ -1793,10 +1798,10 @@ public class Content {
                 content.or().eq("_id", id);
             }
             rb = content.data(object).updateAll() > 0 ? true : false;
-            if (rb) {
-                // 发送数据到kafka
-                appsProxy.proxyCall("/GrapeSendKafka/SendKafka/sendData2Kafka/" + oid + "/int:1/int:3/int:" + NewState);
-            }
+//            if (rb) {
+//                // 发送数据到kafka
+//                appsProxy.proxyCall("/GrapeSendKafka/SendKafka/sendData2Kafka/" + oid + "/int:1/int:3/int:" + NewState);
+//            }
         } else {
             rb = false;
         }

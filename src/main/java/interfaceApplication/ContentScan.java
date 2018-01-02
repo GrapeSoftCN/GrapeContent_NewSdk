@@ -2,7 +2,8 @@ package interfaceApplication;
 
 import org.json.simple.JSONArray;
 
-import JGrapeSystem.rMsg;
+import common.java.JGrapeSystem.rMsg;
+
 
 /**
  * 文章内容扫描 是否含有手机号，身份证号，银行卡号

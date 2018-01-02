@@ -1,9 +1,7 @@
 package Test;
 
-import cache.CacheHelper;
-import httpServer.booter;
-import nlogger.nlogger;
-import string.StringHelper;
+import common.java.httpServer.booter;
+import common.java.nlogger.nlogger;
 
 public class TestContent {
     public static void main(String[] args) {

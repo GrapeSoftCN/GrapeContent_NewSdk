@@ -1,10 +1,5 @@
 package Model;
 
-import apps.appsProxy;
-import cache.CacheHelper;
-import check.checkHelper;
-import database.dbFilter;
-import httpClient.request;
 import interfaceApplication.ContentGroup;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -12,15 +7,21 @@ import java.util.List;
 import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import json.JSONHelper;
-import nlogger.nlogger;
 import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-import security.codec;
-import session.session;
-import string.StringHelper;
+import common.java.apps.appsProxy;
+import common.java.cache.CacheHelper;
+import common.java.check.checkHelper;
+import common.java.database.dbFilter;
+import common.java.httpClient.request;
+import common.java.json.JSONHelper;
+import common.java.nlogger.nlogger;
+import common.java.security.codec;
+import common.java.session.session;
+import common.java.string.StringHelper;
+
 
 public class CommonModel {
     private String APIHost = "";
@@ -34,11 +35,11 @@ public class CommonModel {
     private final Pattern ATTR_PATTERN = Pattern.compile("<img[^<>]*?\\ssrc=['\"]?(.*?)['\"]?\\s.*?>", 2);
 
     public CommonModel() {
-        this.se = new session();
-        this.userInfo = this.se.getDatas();
-        if ((this.userInfo != null) && (this.userInfo.size() > 0)) {
-            this.userID = this.userInfo.getString("id");
-            this.userName = this.userInfo.getString("name");
+        se = new session();
+        userInfo = se.getDatas();
+        if ((userInfo != null) && (userInfo.size() > 0)) {
+            userID = userInfo.getString("id");
+            userName = userInfo.getString("name");
         }
     }
 
@@ -176,9 +177,9 @@ public class CommonModel {
     }
 
     public void setKafka(String id, int mode, int newstate) {
-        this.APIHost = getconfig("APIHost");
-        if ((!this.APIHost.equals("")) && (!this.APIAppid.equals("")))
-            request.Get(this.APIHost + "/sendServer/ShowInfo/getKafkaData/" + id + "/" + this.appid + "/int:1/int:" + mode + "/int:" + newstate);
+        APIHost = getconfig("APIHost");
+        if ((!APIHost.equals("")) && (!APIAppid.equals("")))
+            request.Get(APIHost + "/sendServer/ShowInfo/getKafkaData/" + id + "/" + appid + "/int:1/int:" + mode + "/int:" + newstate);
     }
 
     public void AddLog(int type, String obj, String func, String condString) {
@@ -204,7 +205,7 @@ public class CommonModel {
             break;
         }
 
-        appsProxy.proxyCall("/GrapeLog/Logs/AddLogs/" + this.userID + "/" + this.userName + "/" + action + "/" + func, appsProxy.getCurrentAppInfo());
+        appsProxy.proxyCall("/GrapeLog/Logs/AddLogs/" + userID + "/" + userName + "/" + action + "/" + func, appsProxy.getCurrentAppInfo());
     }
 
     private String getColumnName(String ogid) {
@@ -610,7 +611,7 @@ public class CommonModel {
             String key = obj.toString();
             String value = objcontent.getString(key);
             if (!value.equals("")) {
-                Matcher matcher = this.ATTR_PATTERN.matcher(value.toLowerCase());
+                Matcher matcher = ATTR_PATTERN.matcher(value.toLowerCase());
                 if (value.contains("/File/upload")) {
                     code = matcher.find() ? 0 : (value.contains("/File/upload") ? 1 : 2);
                 } else if (value.contains("/") || value.contains("\\")) {
@@ -661,7 +662,7 @@ public class CommonModel {
     }
 
     private List<String> getCommonAddr(String contents) {
-        Matcher matcher = this.ATTR_PATTERN.matcher(contents);
+        Matcher matcher = ATTR_PATTERN.matcher(contents);
         List list = new ArrayList();
         while (matcher.find()) {
             list.add(matcher.group(1));

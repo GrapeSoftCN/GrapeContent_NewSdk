@@ -3,12 +3,12 @@ package Model;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-import apps.appsProxy;
-import database.db;
+import common.java.apps.appsProxy;
+import common.java.database.db;
+import common.java.interfaceModel.GrapeDBSpecField;
+import common.java.interfaceModel.GrapeTreeDBModel;
+import common.java.string.StringHelper;
 import interfaceApplication.ContentGroup;
-import interfaceModel.GrapeDBSpecField;
-import interfaceModel.GrapeTreeDBModel;
-import string.StringHelper;
 
 /**
  * 文章数据统计

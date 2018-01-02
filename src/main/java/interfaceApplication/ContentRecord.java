@@ -2,11 +2,11 @@ package interfaceApplication;
 
 import org.json.simple.JSONObject;
 
-import JGrapeSystem.rMsg;
-import apps.appsProxy;
-import interfaceModel.GrapeDBSpecField;
-import interfaceModel.GrapeTreeDBModel;
-import session.session;
+import common.java.JGrapeSystem.rMsg;
+import common.java.apps.appsProxy;
+import common.java.interfaceModel.GrapeDBSpecField;
+import common.java.interfaceModel.GrapeTreeDBModel;
+import common.java.session.session;
 
 public class ContentRecord {
     private GrapeTreeDBModel Record;
