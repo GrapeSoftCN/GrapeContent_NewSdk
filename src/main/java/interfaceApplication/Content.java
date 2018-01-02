@@ -254,7 +254,7 @@ public class Content {
             if (type == 0) {
                 content.eq("content", contentInfo);
             } else {
-                content.eq("contenturl", "contenturl");
+                content.eq("contenturl", contentInfo);
             }
             object = content.find();
         }
