@@ -75,6 +75,38 @@ public class Content {
     }
 
     /**
+     * 文章置顶
+     * @param oid
+     * @return
+     */
+    public String SetTop(String oid) {
+        long SetTime = TimeHelper.nowMillis();
+        return Runtop(oid, SetTime);
+    }
+
+    /**
+     * 取消置顶
+     * @param oid
+     * @return
+     */
+    public String cancelTop(String oid) {
+        long SetTime = 0; // 取消置顶，isTop为0
+        return Runtop(oid, SetTime);
+    }
+
+    /**
+     * 文章置顶操作
+     * @param oid
+     * @param setTime
+     * @return
+     */
+    private String Runtop(String oid, long setTime) {
+        JSONObject object = new JSONObject("isTop", setTime); // 置顶时间
+        JSONObject rjson = content.eq(pkString, oid).data(object).update();
+        return rMsg.netMSG(rjson != null, "");
+    }
+
+    /**
      * 获取某个栏目下的文章数量
      * 
      * @param ogid
@@ -221,8 +253,6 @@ public class Content {
      *            栏目id
      * @param mainName
      *            文章标题
-     * @param contentInfo
-     *            文章内容
      * @return 返回0:表示文章不存在；返回1:表示文章已存在；
      */
     public String ContentIsExist(String ogid, String mainName, int type) {
@@ -379,7 +409,8 @@ public class Content {
                 ro = findOid(info);
 
                 result = (ro != null && ro.size() > 0) ? rMsg.netMSG(0, ro) : result;
-//                appsProxy.proxyCall("/GrapeSendKafka/SendKafka/sendData2Kafka/" + info + "/int:1/int:1/int:" + state);
+                // appsProxy.proxyCall("/GrapeSendKafka/SendKafka/sendData2Kafka/"
+                // + info + "/int:1/int:1/int:" + state);
             }
         } catch (Exception e) {
             nlogger.logout(e);
@@ -746,7 +777,7 @@ public class Content {
     /**
      * 整理查询出的文章数据，导出
      * 
-     * @param array
+     * @param condString
      * @return
      */
     @SuppressWarnings("unchecked")
@@ -847,7 +878,7 @@ public class Content {
     public String FindNewArc(String wbid, int idx, int pageSize) {
         long total = 0;
         JSONArray array = null;
-        content.eq("wbid", model.getRWbid(wbid)).eq("state", 2).eq("isdelete", 0).eq("isvisble", 0).desc("time").desc(pkString);
+        content.eq("wbid", model.getRWbid(wbid)).eq("state", 2).eq("isdelete", 0).eq("isvisble", 0).desc("isTop").desc("time").desc(pkString);
         array = content.dirty().mask("content").page(idx, pageSize);
         total = content.count();
         array = model.ContentDencode(array);
@@ -869,7 +900,8 @@ public class Content {
         case 0:
             result = getSingleArticle(obj, oid);
             // 发送数据到kafka
-//            appsProxy.proxyCall("/GrapeSendKafka/SendKafka/sendData2Kafka/" + oid + "/int:1/int:2/int:2");
+            // appsProxy.proxyCall("/GrapeSendKafka/SendKafka/sendData2Kafka/" +
+            // oid + "/int:1/int:2/int:2");
             break;
         case 1:
             result = rMsg.netMSG(3, "您不属于该单位，无权查看该单位信息");
@@ -976,7 +1008,7 @@ public class Content {
             }
             JSONArray condArray = JSONArray.toJSONArray(ogid);
             if (condArray != null && condArray.size() > 0 && StringHelper.InvaildString(wbid)) {
-                array = content.or().where(condArray).and().eq("wbid", wbid).eq("slevel", 0).eq("isdelete", 0).eq("isvisble", 0).field("_id,mainName,ogid,time,image").desc("time").desc("sort").desc("_id").limit(100).select();
+                array = content.or().where(condArray).and().eq("wbid", wbid).eq("slevel", 0).eq("isdelete", 0).eq("isvisble", 0).field("_id,mainName,ogid,time,image").desc("isTop").desc("time").desc("sort").desc("_id").limit(100).select();
                 array = model.getImgs(array);
                 if (array != null && array.size() > 0) {
                     int l = array.size();
@@ -1023,7 +1055,7 @@ public class Content {
     }
 
     /*---------- 前台分页 
-     * 				[显示字段：_id,mainName,time,wbid,ogid,image,readCount,souce]
+     * 				[显示字段：_id,mainName,time,wbid,ogid,image,clickcount,souce]
      * ----------
      */
     public String Page(String wbid, int idx, int pageSize) {
@@ -1033,7 +1065,7 @@ public class Content {
         if (pageSize <= 0) {
             return rMsg.netMSG(false, "页长度错误");
         }
-        JSONArray array = content.eq("isdelete", 0).eq("isvisble", 0).page(idx, pageSize);
+        JSONArray array = content.eq("isdelete", 0).eq("isvisble", 0).field("_id,mainName,time,wbid,ogid,image,clickcount,souce,contenturl").desc("isTop").desc("time").desc("sort").desc("_id").page(idx, pageSize);
         array = model.setTemplate(array);
         return rMsg.netPAGE(idx, pageSize, content.dirty().count(), array);
     }
@@ -1077,7 +1109,7 @@ public class Content {
         if (content.getCondCount() > 0) {
             content.and().eq("wbid", model.getRWbid(wbid)).eq("isdelete", 0).eq("isvisble", 0).eq("state", 2);
             total = content.dirty().count();
-            array = content.desc("time").field("_id,mainName,time,wbid,ogid,image,clickcount,souce,contenturl").desc("time").desc("sort").desc("_id").page(idx, pageSize);
+            array = content.desc("isTop").desc("time").desc("sort").desc("_id").field("_id,mainName,time,wbid,ogid,image,clickcount,souce,contenturl,isTop").page(idx, pageSize);
             array = model.setTemplate(array); // 设置模版
             out = rMsg.netPAGE(idx, pageSize, total, model.getImgs(model.getDefault(wbid, array)));
         } else {
@@ -1101,7 +1133,7 @@ public class Content {
             content.eq("wbid", currentWeb);
         }
         total = content.dirty().count();
-        array = content.desc("sort").desc("time").page(idx, pageSize);
+        array = content.desc("isTop").desc("time").desc("sort").page(idx, pageSize);
         array = model.setTemplate(array); // 设置模版
         array = model.getImgs(model.getDefault(currentWeb, array));
         array = model.ContentDencode(array);
@@ -1140,7 +1172,7 @@ public class Content {
         }
         if (content.getCondCount() > 0) {
             content.and().eq("isdelete", 0).eq("isvisble", 0);
-            array = content.dirty().desc("sort").desc("time").page(idx, pageSize);
+            array = content.dirty().desc("isTop").desc("time").desc("sort").page(idx, pageSize);
             total = content.count();
             array = model.setTemplate(array); // 设置模版
             array = model.getImgs(model.getDefault(currentWeb, array));
@@ -1798,10 +1830,11 @@ public class Content {
                 content.or().eq("_id", id);
             }
             rb = content.data(object).updateAll() > 0 ? true : false;
-//            if (rb) {
-//                // 发送数据到kafka
-//                appsProxy.proxyCall("/GrapeSendKafka/SendKafka/sendData2Kafka/" + oid + "/int:1/int:3/int:" + NewState);
-//            }
+            // if (rb) {
+            // // 发送数据到kafka
+            // appsProxy.proxyCall("/GrapeSendKafka/SendKafka/sendData2Kafka/" +
+            // oid + "/int:1/int:3/int:" + NewState);
+            // }
         } else {
             rb = false;
         }
