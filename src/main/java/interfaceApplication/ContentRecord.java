@@ -7,6 +7,7 @@ import common.java.apps.appsProxy;
 import common.java.interfaceModel.GrapeDBSpecField;
 import common.java.interfaceModel.GrapeTreeDBModel;
 import common.java.session.session;
+import common.java.time.TimeHelper;
 
 public class ContentRecord {
     private GrapeTreeDBModel Record;
@@ -42,6 +43,7 @@ public class ContentRecord {
         JSONObject info = new JSONObject();
         info.put("uid", currentUser); // 用户id
         info.put("oid", oid); // 文章id
+        info.put("time", TimeHelper.nowMillis()); // 浏览时间
         tip = Record.data(info).insertEx();
         return tip!=null ? rMsg.netMSG(0, "新增成功"):result;
     }

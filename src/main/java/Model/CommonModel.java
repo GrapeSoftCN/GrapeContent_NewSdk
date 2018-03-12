@@ -22,7 +22,6 @@ import common.java.security.codec;
 import common.java.session.session;
 import common.java.string.StringHelper;
 
-
 public class CommonModel {
     private String APIHost = "";
     private String APIAppid = "";
@@ -431,18 +430,16 @@ public class CommonModel {
      * @return
      */
     public String getRWbid(String wbid) {
-        CacheHelper cacheHelper = new CacheHelper("redis");
-        String key = "vID2rID_" + wbid;
-        String value = cacheHelper.get(key);
-        if (StringHelper.InvaildString(value)) {
-            return value;
-        }
+        // CacheHelper cacheHelper = new CacheHelper();
+        // String key = "vID2rID_" + wbid;
+        // String value = cacheHelper.get(key);
+        // if (StringHelper.InvaildString(value)) {
+        // return value;
+        // }
         String temp = (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/VID2RID/" + wbid);
-        value = cacheHelper.setget(key, temp, 20);
-        System.out.println("wbid2: "+value);
-        return value;
+        // value = cacheHelper.setget(key, temp, 20);
+        return temp;
     }
-
 
     @SuppressWarnings("unchecked")
     public JSONObject ContentEncode(JSONObject object) {
@@ -617,7 +614,6 @@ public class CommonModel {
                 } else if (value.contains("/") || value.contains("\\")) {
                     code = matcher.find() ? 0 : ((value.startsWith("/") || value.startsWith("\\")) ? 3 : 2);
                 }
-
                 switch (code) {
                 case 0:
                     value = AddHtmlPrefix(value);
@@ -649,10 +645,17 @@ public class CommonModel {
                 for (int i = 0; i < l; i++) {
                     temp = (String) list.get(i);
                     if (!temp.contains("http://")) {
-                        if ((!temp.startsWith("/")) || (!temp.startsWith("//")) || (!temp.startsWith("\\"))) {
+                        if (temp.startsWith("/") || temp.startsWith("\\") || temp.startsWith("//")) { // 以"/"开头
+                            // base64编码的图片
+                            if (temp.toLowerCase().startsWith("/data") || temp.toLowerCase().startsWith("\\data") || temp.toLowerCase().startsWith("//data")) {
+                                newurl = temp.substring(temp.toLowerCase().indexOf("d"));
+                            } else {
+                                newurl = "\\" + temp;
+                            }
+                        } else {
                             newurl = "\\" + temp;
+                            newurl = imgurl + newurl;
                         }
-                        newurl = imgurl + newurl;
                         Contents = Contents.replace(temp, newurl);
                     }
                 }

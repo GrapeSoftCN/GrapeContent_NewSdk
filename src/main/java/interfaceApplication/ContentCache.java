@@ -271,9 +271,9 @@ public class ContentCache {
     @SuppressWarnings("unchecked")
     private JSONObject pushDencode(JSONObject obj) {
         String value = obj.get("content").toString();
-        value = codec.DecodeHtmlTag(value);
+       // value = codec.DecodeHtmlTag(value);//ckd_zs
         value = codec.decodebase64(value);
-        obj.escapeHtmlPut("content", value);
+       // obj.escapeHtmlPut("content", value);//ckd_zs
         if (obj.containsKey("image")) {
             String image = obj.getString("image");
             if (!image.equals("") && image != null) {
