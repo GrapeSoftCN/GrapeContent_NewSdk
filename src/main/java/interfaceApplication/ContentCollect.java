@@ -79,8 +79,7 @@ public class ContentCollect {
 			return rMsg.netMSG(1, "无效文章id");
 		}
 		_content.eq("oid", oid).eq("userid", currentUserID);
-		if (_content.nullCondition()==false) {
-		//if (_content.getCondCount() > 0) {
+		if (_content.getCondCount() > 0) {
 			// if (_content.nullCondition()==false) {
 			code = _content.delete() != null ? 0 : 100;
 		}

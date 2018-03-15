@@ -28,6 +28,6 @@
 			<attribute name="owner.project.facets" value="java"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="lib" path="C:/GrapeFW-1.2.2.4-jar-with-dependencies.jar"/>
+	<classpathentry kind="lib" path="D:/ckd/1006.jar"/>
 	<classpathentry kind="output" path="target/classes"/>
 </classpath>

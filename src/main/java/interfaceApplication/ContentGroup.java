@@ -1001,8 +1001,7 @@ public class ContentGroup {
 			// 获取查询条件，封装成[{"field":"","logic":"=","value":""}]
 			JSONArray condArray = model.getOrCond(pkString, ogids);
 			group.or().where(condArray);
-			if (group.nullCondition()==false) {
-			//if (group.getCondCount() > 0) {
+			if (group.getCondCount() > 0) {
 				// if (group.nullCondition() == false) { // 条件有效
 				array = group.field(pkString + ",linkOgid,MixMode").select();
 				if (array != null && array.size() > 0) {
@@ -1113,8 +1112,7 @@ public class ContentGroup {
 			}
 			group.or().where(filter.build());
 		}
-		if (group.nullCondition()==false) {
-		//if (group.getCondCount() > 0) {
+		if (group.getCondCount() > 0) {
 			// if (group.nullCondition() == false) {
 			array = group.field(pkString + ",thumbnail,suffix").scan((jsArray) -> {
 				JSONArray rsArray = jsArray;

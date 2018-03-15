@@ -42,10 +42,9 @@ import common.java.rpc.execRequest;
 import common.java.security.codec;
 import common.java.session.session;
 import common.java.string.StringHelper;
-
+import common.java.thirdsdk.kuweiCheck;
 import common.java.time.TimeHelper;
 import jdk.nashorn.internal.scripts.JO;
-import thirdsdk.kuweiCheck;
 import unit.Ceshi;
 import unit.JSONArrayUtils;
 import unit.LogsUtils;
@@ -513,7 +512,7 @@ public class Content {
 		JSONArray object = null;
 		contentInfo = codec.DecodeHtmlTag(contentInfo);
 		contentInfo = codec.decodebase64(contentInfo);
-
+		String rt = "1";
 		if (StringHelper.InvaildString(ogid)) {
 			// 检验时间解决文章修改问题-陈凯迪
 			content.eq("ogid", ogid).eq("mainName", codec.DecodeFastJSON(mainName)).eq("isdelete", 0);
@@ -532,9 +531,10 @@ public class Content {
 					if (Math.abs(a) <= 604800000) {
 						String _id = o.getString(pkString);
 						content.eq(pkString, _id).data(new JSONObject().puts("isdelete", 1)).update();
-						return "0";
+						rt = "0";
 					}
 				}
+				return rt;
 			}
 			// 郎姐
 			content.eq("ogid", ogid).eq("mainName", codec.DecodeFastJSON(mainName)).eq("isdelete", 0);
@@ -544,9 +544,19 @@ public class Content {
 				content.eq("contenturl", contentInfo);
 			}
 			object = content.select();
+			if (object != null && object.size() > 0) {
+				for (Object object2 : object) {
+					JSONObject o = (JSONObject) object2;
+					String _id = o.getString(pkString);
+					content.eq(pkString, _id).data(new JSONObject().puts("isdelete", 1)).update();
+					rt = "0";
+				}
+			} else {
+				rt = "0";
+			}
 
 		}
-		return (object != null && object.size() > 0) ? "1" : "0";
+		return rt;
 	}
 
 	// /**
@@ -1335,12 +1345,12 @@ public class Content {
 
 	public void test() {
 		JSONObject find = content.find();
-		String long1 =  (String) find.get("clickcount");
-	
-		
-		//int pageMax = content.pageMax(3);
-		//Object insertOnce = content.data(new JSONObject().puts("mainName", "测试")).autoComplete().insertOnce();
-		//content.eq("aa", "1");
+		String long1 = (String) find.get("clickcount");
+
+		// int pageMax = content.pageMax(3);
+		// Object insertOnce = content.data(new JSONObject().puts("mainName",
+		// "测试")).autoComplete().insertOnce();
+		// content.eq("aa", "1");
 		// boolean nullCondition = content.nullCondition();
 		System.out.println();
 	}
@@ -1374,8 +1384,8 @@ public class Content {
 				content.and().where(condArray);
 			}
 		}
-		 if (content.nullCondition()==false) {
-		//if (content.getCondCount() > 0) {
+		// if (content.nullCondition()==false) {
+		if (content.getCondCount() > 0) {
 			content.and().eq("wbid", wbid).eq("slevel", 0).eq("isdelete", 0).eq("isvisble", 0).desc("time")
 					.field("_id,mainName,image,time,content");
 			array = content.dirty().page(idx, pageSize);
@@ -1517,8 +1527,8 @@ public class Content {
 				content.and().where(condArray);
 			}
 		}
-		 if (content.nullCondition()==false) {
-		//if (content.getCondCount() > 0) {
+		// if (content.nullCondition()==false) {
+		if (content.getCondCount() > 0) {
 			content.and().eq("wbid", model.getRWbid(wbid)).eq("isdelete", 0).eq("isvisble", 0).eq("state", 2);
 			total = content.dirty().count();
 			JSONObject cond = content.getCond();
@@ -1559,7 +1569,7 @@ public class Content {
 	public String PageByBack(int idx, int pageSize, String condString) {
 		long total = 0;
 		JSONArray array = null;
-		GrapeTreeDBModel content = getDB();
+	
 		if (idx <= 0) {
 			return rMsg.netMSG(false, "页码错误");
 		}
@@ -1575,6 +1585,8 @@ public class Content {
 			return rMsg.netMSG(1, "无效条件");
 		}
 		JSONObject obj = model.buildCondOgid(condString);
+		// 获取所有下级栏目
+		obj = getNextColumn(obj);
 		if (obj != null && obj.size() > 0) {
 			condArray = obj.getJsonArray("cond");
 			condOgid = obj.getJsonArray("ogid");
@@ -1585,8 +1597,8 @@ public class Content {
 				content.and().where(condArray);
 			}
 		}
-	//	if (content.getCondCount() > 0) {
-		 if (content.nullCondition()==false) {
+		if (content.getCondCount() > 0) {
+			// if (content.nullCondition()==false) {
 			content.and().eq("isdelete", 0).eq("isvisble", 0);
 			array = content.dirty().desc("isTop").desc("time").desc("sort").page(idx, pageSize);
 			total = content.count();
@@ -1747,7 +1759,7 @@ public class Content {
 								jsonObject.put(mainName, ob);
 							}
 						}
-					}else {
+					} else {
 						Long day = Math.abs(time - put) / 86400000;
 						if (day <= time_interval || time_interval == -1) {
 							String timeStamp2Date = timeStamp2Date(String.valueOf(time), null);
@@ -1759,7 +1771,7 @@ public class Content {
 						hashSet = new HashSet<Long>();
 						hashSet.add(time);
 						hashSet.add(put);
-						timeMap.put(mainName,hashSet);
+						timeMap.put(mainName, hashSet);
 					}
 				}
 
@@ -2032,8 +2044,7 @@ public class Content {
 				content.and().where(condArray);
 			}
 		}
-		if (content.nullCondition()==false) {
-		//if (content.getCondCount() > 0) {
+		if (content.getCondCount() > 0) {
 			// if (content.nullCondition()==false) {
 			content.and().eq("isdelete", 0).eq("isvisble", 0).desc("time").desc("time").desc("sort").desc("_id");
 			total = content.dirty().count();
@@ -2259,8 +2270,7 @@ public class Content {
 				content.and().where(condArray);
 			}
 		}
-		if (content.nullCondition()==false) {
-		//if (content.getCondCount() > 0) {
+		if (content.getCondCount() > 0) {
 			// if (content.nullCondition()==false) {
 			content.desc("time").eq("slevel", 0).field("_id,mainName,ogid,time");
 			array = content.dirty().page(idx, PageSize);
@@ -2299,8 +2309,7 @@ public class Content {
 				content.and().where(condArray);
 			}
 		}
-		if (content.nullCondition()==false) {
-		//if (content.getCondCount() > 0) {
+		if (content.getCondCount() > 0) {
 			// if (content.nullCondition()==false) {
 			content.and().eq("slevel", 0).desc("clickcount").desc("_id").field("_id,mainName,ogid,time");
 			total = content.dirty().count();
